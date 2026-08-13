@@ -1,0 +1,216 @@
+### TABS: ['All Stations', 'Unit 3 Others', 'Unit 3 Lampshade', 'Unit 4', 'Schmutter', 'Kronen']
+
+===== SHEET: All Stations =====
+R001 | Unit 3 Lampshade | Unit 3 Lampshade Speak tool |  | Speak Tool Requirements
+R002 | Unit 3 Others | Copy of jana speak |  | - For a order all the components are need to be shown (like packlist)
+R003 | Unit 3 Person 2 | Unit 3 Lampshade Person 2 Speak tool
+R004 | Unit 4 | Unit 4 speak tool
+R005 | Schmutter | Schmutter speak tool
+R006 | Kronen | Kronen speak tool
+R007 | master sheet | Names master sheet-Postage team
+R008 | Order types | 1. Single order single product
+R009 |  | 2. Merge order single products
+R010 |  | 3. Single order multi products
+R011 |  | 4. Merge order multi products
+R012 |  | 5. Merge order single and multi products
+
+===== SHEET: Unit 3 Others =====
+R001 | Copy of jana speak
+R002 | Date | Issues | Ref | Correction made by Lithurshan | Feedback
+R003 | 24/06/2025 Janarththan | 12 IP20 120 Speech gap |  | False | i can't do for single one can do it for every think
+R004 |  | Next order moving auto |  | True
+R005 |  | Merge order should be shown fully and each component mentioned |  | True
+R006 |  | International showing as UK |  | True
+R007 |  | 3 types of pipe (not painted, black, galvanized) |  | False | i can't do for single one can do it for every think
+R008 | 25/06/2025 Matheesan | next day sticker speak |  | False | not found in the packlist
+R009 |  | hold button create  |  | True
+R010 |  | services telling - evri, royal mail |  | False | not found in the packlist
+R011 |  | 2 times speak |  | True
+R012 |  | re speak button |  | True
+R013 |  | prime,cable, transformer,others telling speak then continue  |  | False | i can't do for single one can do it for every think
+R014 |  | pause button not complte work |  | True
+R015 | 26/06/2025 Janarththan | cable 10 meter speak |  | True
+R016 |  | total component |  | True
+R017 |  | 3 CORE BROWN 10 METER |  | True
+R018 |  | SLOW DOWN SPEAK |  | True
+R019 |  | NAME QUANTITY NOT |  | True
+R020 |  | after postcode free gap need |  | True
+R021 |  | telling combo start & end |  | True
+R022 |  | hold screen shot |  | True
+R023 |  | mapping merge |  | True
+R024 | 29/06/2025 Janarththan | 24 IP67 150 Watts - Sixy seven thousand ??? |  | True
+R025 |  | Sometimes next not working |  | True
+R026 |  | Don't auto moving to next order  |  | True
+R027 | 07/07/2025 Atisraj | Address Issue Cant Show |  | True
+R028 |  | IP20 000 issue |  | True
+R029 |  | z ahh c endu speaking issue |  | True
+R030 |  | automatic hold issue |  | True
+R031 |  | Quantity should be with meters for cables |  | True
+R032 | 08/07/2025 Atisraj | Us english female voice mathiri Uk english voice vantha better |  | True
+R033 |  | Cables Quantity 5 endu varama 5 Meter endu varanum |  | True
+R034 |  | 12 voltage endu add aakanum |  | False | this is for add name sheet 
+R035 |  | 12 ip20 20  idaila gap varanum |  | True
+R036 |  | Automatic Hold Issue |  | True
+R037 | 09/07/2025 Matheesan | merge & combo orders same time both names speak |  | False | not possible for this 
+R038 | 10/07/2025 Matheesan | merge & combo orders same time both names speak |  | False | not possible for this 
+R039 | 13/07/2025 Janarththan | Post code not shown when 2 postcode same |  | True
+R040 |  | Merge and combo product should be speak auto one after other |  | False | i can't do for single one can do it for every think
+R041 |  | Color code issue |  | True
+R042 | 15/07/2025 Matheesan | PE11 3TY wrong speak 20 thousand |  | True
+R043 |  | combo orders like speak merge  |  | True
+R044 |  | 2625-717 international address showing uk name ⏎  |  | True
+R045 | 16/07/2025 Pirakasana | SPSDP2BMY - add the name of black cord grip gold top |  | True
+R046 |  | accessories image sethu vantha kaanum |  | True
+R047 |  | cable 5m kku 1m endu solluthu CT20 2ED |  | True
+R048 | 18/07/2025 Pirakasana | HG4 1JR , CR0 8TA ,TQ2 8NE ,KT11 1HW Next sollum pothu play akala |  | False | some times i think for network error
+R049 | 21/07/2025 Pirakasana | prime speak tool next sollum pothu play akala |  | False
+R050 |  |  |  | False
+R051 |  |  |  | False
+R052 | 23/07/2025 Matheesan | IP20 000 issue |  | False
+R053 | 25/07/2025 PIRAKASANA | TRANSFORMER SPEAK TOOL WRONG |  | False
+R054 | 27/07/2025 PIRAKASANA | M22 9A2 000 ISSUE |  | False
+R055 |  | RH19 1SE  DONT TELL COLOUR |  | False
+R056 | 25/07/2025 PIRAKASANA | TF2 8NP SPEAK  GOLDTOP |  | False
+R057 | 08/08/2025 PIRAKASANA |  |  | False
+R058 |  |  LU1 4EL    SPEAK 1M  |  | False
+R059 | 12/08/2025 Pirakasana | SP11 6TQ   not speak quantity |  | False
+R060 | 19/08/2025 Pirakasana | next sollum pothu play akala |  | False
+R061 | 15/09/2025 Matheesan | cusomer note not shoes in speak tool plz shortout, plz activate speak postcode urgent |  | False
+R062 |  |  |  | False
+R063 | 02/10/2025 Matheesan |  |  | False
+R064 |  | not add note in packlist
+R065 | 07/10/2025 Matheesan | mapping issue see above picture |  | False
+R066 |  |  |  | False
+R067 |  |  |  | False
+R068 |  |  |  | False
+
+===== SHEET: Unit 3 Lampshade =====
+R001 | Date | Issues | Ref | Correction made by Lithurshan | Feedback
+R002 | 01.08.2025 | Unit 4 Change panninathu ellam unit 3 change pannanum | True |  | Sheet copied from Unit 4
+R003 | 06.08.2025 | QR sollanum | False
+R004 |  | reducer plate sollanum | True
+R005 |  | nextday sticker sollanum | False
+R006 |  | BB4 4JY  mount vara koodaathu packlistla ullathu varanum (Mapping) | True
+R007 |  | last ahh merge order ellam postcode varekka all pack irukkanum | False
+R008 |  | BS39 4nn mount vara koodaathu packlistla ullathu varanum (Mapping) | True
+R009 |  | packlistla first ahh free bulb vara mathiri set pannaddam | False
+R010 | 08.08.2025
+R011 |  | ella colour shades varekka ondu onda edukka kastam serththu varanum
+R012 |  | CRFF2008BM  CBFF200BM accessories sernthu varanum
+R013 | 08.13.2025 | first bulb and next shade vaara mathiri seiyaddaam
+R014 | 08.19.2025 | QR sollala
+R015 |  | same postcode customer varathala merge order mathir varuthu (Important)
+R016 |  | name master sheet la change pannathu maarala
+R017 |  | merge order ellam full ahh varanum
+R018 | 08.20.2025
+R019 |  | michcha products varella free bulb halfting holder 
+R020 |  | Different postcodes for these 2 combo orders
+R021 |  | LDMG125E278
+R022 | 08.27.2025
+R023 |  | note speak pnnannum
+R024 |  | qr silathukku solluthu illa
+R025 |  | RMI orderum 2-4 1st orderum merge ahh vanthu7 irukku
+R026 | 08.29.2025 | shade kadasi ahh varanum aam
+R027 | this order why apove came this
+R028 | 25.09.2025
+R029 |  | plz activate speak postcode urgent | True
+
+===== SHEET: Unit 4 =====
+R001 | Unit 4 speak tool
+R002 | Date | Issues | Ref | Correction made by Lithurshan | Feedback
+R003 | 02/06/2025 Janarththan | Skip issue |  | True | Did not skip while testing in our own device but skipping in remote PC
+R004 |  | Mic icon disappear |  | True | Still disappearing
+R005 |  | GB - Gigabyte acronyms |  | True | Still appears
+R006 |  | While speaking, listen to out commands |  | True | Works
+R007 |  | Back and stop command issue |  | True | Back command works
+R008 |  | Naming issue |  | True
+R009 |  | Color code not added |  | True
+R010 | 04/06/2025 Janarththan | Acronym issue - st for street |  | True
+R011 |  | Mic icon disappear |  | True
+R012 |  | Stop and Run command not working |  | True
+R013 |  | Stopped speaking until use the next button or voice command given |  | True
+R014 |  | Order time delay with the quantity of the product |  | True
+R015 |  | Combo and multi-line product packlist |  | True
+R016 | 19/06/2025  Janarththan | Mapping full set image should be shown |  | True
+R017 |  | with Reducer plate product shouldn't be shown separate |  | True
+R018 |  | When postcode, voice command not working |  | True
+R019 |  | Postcode took long time |  | True
+R020 | 23/06/2025 Janarththan | Speech gap between Quantity and postcode |  | True
+R021 |  | Mention if it is First class, International orders |  | True
+R022 |  | Speak quantity first then product name |  | True
+R023 |  | Orders are auto moving to next order |  | True
+R024 |  | Merge orders should mentioned with their total components and speak Componenet 1, component 2, etc.... and last Postcode |  | True
+R025 |  | Multi and merge orders components should be shown infront of the order |  | True
+R026 | 04/07/2025 Janarththan | Z kku Zee pronunciation |  | True
+R027 |  | Combo image is showing but for one order It's not showing |  | True
+R028 |  | Combo 1:  for single product  don't say  |  | True
+R029 |  | Is it possible to speed up the speech |  | True
+R030 |  | Post code not shown/speak issue |  | True
+R031 |  | Next command not working twice when speak |  | True
+R032 | 08/07/2025 Janarththan |  | Quantity varela | True
+R033 |  | for single product orders - don't have to speak twice |  | True
+R034 |  |  | Combo products image not shown | True
+R035 |  |  | Not all the combo product image shown | True
+R036 | 09/07/2025 Janarththan | Reducer plate name is not shown |  | True
+R037 |  | Post code not shown when 2 postcode same |  | False
+R038 |  | Do back command works? |  | True
+R039 |  |  |  | False
+R040 |  |  |  | False
+R041 |  |  |  | False
+R042 | 10/07/2025 Janarththan |  | Reducer Plate not said | True
+R043 | 11/07/2025 Janarththan | Speak Speed Normal x1, Fast x.1.25, Very fast x.1.5 |  | True
+R044 |  | for Amazon 2 Day Small orders - speak S label 2 kilos |  | False
+R045 |  | Next Command not FAST enough |  | True
+R046 |  | Mapping bulb is not shown |  | True
+R047 | 14/07/2025 Janarththan | Mapping bulb is not shown |  | True
+R048 |  |  | Mapping not shown in combo | True
+R049 |  | Merge order said once instead of nuber of total orders |  | True
+R050 |  | Mapping bulb is not shown |  | True
+R051 |  |  |  | False
+R052 | 17/07/2025 Janarththan | Mapping bulb is not shown |  | True
+R053 |  | Change the speaking speed to default |  | True
+R054 |  | Next Command not FAST enough |  | True
+R055 |  | Merge order said once instead of number of total orders - merge order endu orukka sonna OK |  | True
+R056 | 18/07/2025 Atisraj |  |  | True
+R057 |  | same postcode issue 1st order cant speak post code |  | True
+R058 |  |  |  | False
+R059 |  |  |  | False
+R060 | 21/07/2025 Janarththan | Next command is not listening enough |  | False
+R061 | 22/07/2025 Janarththan | Next command is not listening enough getting tired from it |  | False
+R062 | 23/07/2025 Janarththan | Combo image not shown |  | True
+R063 |  | For merge orders all the components needs to be shown |  | True
+R064 | 24/07/2025 Janarththan |  |  | True
+R065 | 06/08/2025 Janarththan |  | Make the note availabel in speak tool but don't speak | False
+R066 |  |  |  | False | Make the packlist name available in speak tool and speak
+R067 |  |  |  | True | Make the below components available in the speak tool row
+R068 | 07/08/2025 Janarththan |  | Create a one names sheet and link to all other speak tool sheets | True
+R069 | 08/08/2025 Janarththan |  | IP 20 Thousand issue | False | I changed the name for IP20 transformers
+R070 | 19/08/2025 Janarththan |  | Postcode button not working | True
+R071 | 12/092025 Janarththan |  | Not need merge order total 2: merge order 1, just say Merge Order and meger order all the components needs to show | False
+
+===== SHEET: Schmutter =====
+R001 | Date | Issues | Ref | Correction made by Lithurshan | Feedback
+R002 | 2025-07-09 00:00:00 | The speaking tool activation process takes some time. Please simplify the process to make it easier to activate |  | True
+R003 |  | The speaking tool pack list needs to include more details, similar to our previous pack list. (Listing image, listing title) |  | False | not possible for this 
+R004 |  | The reducer plate name was not mentioned when ordering the only lamp shade |  | True
+R005 |  | It currently requires speaking twice and takes some time. We need it to work with just one attempt. |  | True
+R006 |  | Merged orders need to be shown as a single view in the pack list. |  | False | not possible for this  | We need to find a way by MD
+R007 |  | We need two separate buttons: one for accessing product details and another for label number. This is because the label number is confirmed only after packing, so a second button is required specifically for telling the label number. |  | True
+R008 | 2025-07-10 00:00:00 | Sometimes, the label number is not mentioned in the speaking tool. |  | True
+R009 | 2025-09-01 00:00:00 | postcode first number 0 not showing speeking tool
+R010 |  | some times after speak wrong number like 53881 speak tool
+R011 | 2025-09-03 00:00:00 | quantity not show |  | False
+R012 |  | post code 00049 |  | False
+R013 | 2025-09-04 00:00:00 | merge single order |  | False
+R014 |  | not add marge  |  | False
+R015 |  |  |  | False
+R016 | 2025-09-15 00:00:00 | speak tool updates (merge order) ellarm germen pack list kum  marthanum kronen & schmutter |  | False
+
+===== SHEET: Kronen =====
+R001 | Date | Issues | Correction made by Lithurshan | Feedback
+R002 | 2025-07-09 00:00:00 | The speaking tool activation process takes some time. Please simplify the process to make it easier to activate | True
+R003 |  | The speaking tool pack list needs to include more details, similar to our previous pack list. (Listing image, listing title) | False | not possible for this 
+R004 |  | In the speaking tool, the transformer details should be provided in the following order: ⏎ First – Transformer type (IP20 or IP67) ⏎ Second – Voltage ⏎ Third – Wattage | True
+R005 |  | It currently requires speaking twice and takes some time. We need it to work with just one attempt. | True
+R006 |  | Merged orders need to be shown as a single view in the pack list. | False | not possible for this 
+R007 |  | We need two separate buttons: one for accessing product details and another for label number. This is because the label number is confirmed only after packing, so a second button is required specifically for telling the label number. | True

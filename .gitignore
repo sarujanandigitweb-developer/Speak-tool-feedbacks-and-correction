@@ -1,0 +1,61 @@
+# ---- Node / TypeScript ----
+node_modules/
+*.tsbuildinfo
+dist/
+build/
+
+# ---- Apps Script (clasp) ----
+# .clasprc.json holds your Google OAuth token — never commit it.
+.clasprc.json
+# .clasp.json only holds the script ID; keep it tracked so `clasp pull` works
+# for the next person. Uncomment the next line if the IDs are considered private.
+# .clasp.json
+
+# ---- Secrets & credentials ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+token.json
+
+# ---- Working files from sheet extraction ----
+# Downloaded workbook snapshots — regenerate with the export URLs in
+# data-maps/station-registry.md rather than committing binaries.
+*.xlsx
+*.xls
+*.ods
+~$*
+
+# ---- Python (used for the sheet extraction scripts) ----
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# ---- Editors ----
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# ---- OS ----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# ---- Logs & temp ----
+*.log
+npm-debug.log*
+logs/
+tmp/
+temp/
+*.tmp
