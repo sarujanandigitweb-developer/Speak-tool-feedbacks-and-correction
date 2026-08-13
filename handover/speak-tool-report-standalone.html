@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Analysis of 160 warehouse Speak Tool feedback items and a prioritised upgrade plan, with root causes confirmed against the Apps Script source.">
+<style>
+  /* minimal reset (the hosted version gets this from the platform) */
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0}
+  img,svg{max-width:100%;display:block}
+  table{border-collapse:collapse}
+
+  /* print / PDF */
+  @media print{
+    :root{--ground:#fff!important;--surface:#fff!important;--surface-2:#f4f4f4!important;
+          --ink:#000!important;--ink-2:#333!important;--ink-3:#666!important;
+          --rule:#ccc!important;--rule-strong:#999!important}
+    body{background:#fff!important}
+    .page{max-width:none;padding:0;gap:2rem}
+    section,.finding,.callout,.two-up>div{break-inside:avoid}
+    h2{break-after:avoid}
+    pre,.flow,.tw{break-inside:avoid}
+    a{color:inherit;text-decoration:none}
+    a[href^="http"]::after{content:" (" attr(href) ")";font-size:.75em;color:#666}
+  }
+</style>
+<title>Speak Tool Teardown</title>
+</head>
+<body>
+<style>
+  :root {
+    --ground:      #F6F7F7;
+    --surface:     #FFFFFF;
+    --surface-2:   #EDEFF0;
+    --ink:         #14181A;
+    --ink-2:       #474F54;
+    --ink-3:       #737C81;
+    --rule:        #DBDFE1;
+    --rule-strong: #BFC6C9;
+    --accent:      #A85706;
+    --accent-soft: #F8EEE1;
+    --crit:        #9C2117;
+    --crit-soft:   #FAE8E5;
+    --ok:          #14623B;
+    --ok-soft:     #E3F0E9;
+    --warn:        #7E5800;
+    --warn-soft:   #F8EFD5;
+
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+
+    --measure: 68ch;
+    --pad: clamp(1.25rem, 4vw, 3.5rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #121517;
+      --surface:     #191D1F;
+      --surface-2:   #212629;
+      --ink:         #E7EAEB;
+      --ink-2:       #A6AFB4;
+      --ink-3:       #788287;
+      --rule:        #2A2F32;
+      --rule-strong: #3B4245;
+      --accent:      #E9A244;
+      --accent-soft: #2B2214;
+      --crit:        #EF9084;
+      --crit-soft:   #331B18;
+      --ok:          #63C795;
+      --ok-soft:     #16291F;
+      --warn:        #DDB055;
+      --warn-soft:   #2B2413;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #121517;
+    --surface:     #191D1F;
+    --surface-2:   #212629;
+    --ink:         #E7EAEB;
+    --ink-2:       #A6AFB4;
+    --ink-3:       #788287;
+    --rule:        #2A2F32;
+    --rule-strong: #3B4245;
+    --accent:      #E9A244;
+    --accent-soft: #2B2214;
+    --crit:        #EF9084;
+    --crit-soft:   #331B18;
+    --ok:          #63C795;
+    --ok-soft:     #16291F;
+    --warn:        #DDB055;
+    --warn-soft:   #2B2413;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: var(--pad);
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+  }
+
+  /* ---------- type ---------- */
+  h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.15; }
+  h1 {
+    font-size: clamp(2.1rem, 5.5vw, 3.4rem);
+    font-weight: 750;
+    letter-spacing: -0.032em;
+  }
+  h2 {
+    font-size: clamp(1.35rem, 3vw, 1.7rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  h3 {
+    font-size: 1.02rem;
+    font-weight: 680;
+    letter-spacing: -0.008em;
+  }
+  p { margin: 0; max-width: var(--measure); }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, .fix-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  strong { font-weight: 660; color: var(--ink); }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code {
+    background: var(--surface-2);
+    padding: 0.12em 0.36em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+
+  .lede { font-size: 1.1rem; color: var(--ink-2); max-width: var(--measure); }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-bottom: 2.25rem;
+    border-bottom: 2px solid var(--ink);
+  }
+  .meta-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.75rem;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-3);
+  }
+  .meta-line span b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------- stat band ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .stat {
+    background: var(--surface);
+    padding: 1.15rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .stat .n {
+    font-size: 2.05rem;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .stat .k {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .stat.is-crit .n { color: var(--crit); }
+  .stat.is-ok   .n { color: var(--ok); }
+  .stat.is-accent .n { color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { display: flex; flex-direction: column; gap: 1.5rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.45rem; }
+  .prose { display: flex; flex-direction: column; gap: 1rem; }
+
+  /* ---------- tables ---------- */
+  .tw { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td {
+    text-align: left;
+    padding: 0.72rem 0.95rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; font-family: var(--mono); }
+  td.ref { font-family: var(--mono); font-size: 0.8rem; white-space: nowrap; color: var(--ink-2); }
+
+  /* ---------- chips ---------- */
+  .chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.67rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.16rem 0.46rem;
+    border-radius: 3px;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .chip.crit { background: var(--crit-soft); color: var(--crit); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.ok   { background: var(--ok-soft);   color: var(--ok); }
+  .chip.acc  { background: var(--accent-soft); color: var(--accent); }
+
+  /* ---------- finding cards ---------- */
+  .findings { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .finding {
+    background: var(--surface);
+    padding: 1.4rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    border-left: 3px solid transparent;
+  }
+  .finding.sev-crit { border-left-color: var(--crit); }
+  .finding.sev-warn { border-left-color: var(--accent); }
+  .finding-top {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .finding-id {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .finding p { font-size: 0.94rem; color: var(--ink-2); }
+  .finding .tickets {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--ink-3);
+    padding-top: 0.15rem;
+    border-top: 1px dotted var(--rule-strong);
+  }
+
+  /* ---------- code block ---------- */
+  pre {
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  pre .cm { color: var(--ink-3); }
+
+  /* ---------- callout ---------- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 1.15rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .callout.crit { border-left-color: var(--crit); }
+  .callout p { font-size: 0.94rem; color: var(--ink-2); max-width: none; }
+
+  /* ---------- flow ---------- */
+  .flow {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.75;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1.15rem 1.35rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--ink-2);
+  }
+  .flow b { color: var(--accent); font-weight: 600; }
+  .flow i { color: var(--crit); font-style: normal; font-weight: 600; }
+
+  /* ---------- two-up ---------- */
+  .two-up {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .two-up > div {
+    background: var(--surface);
+    padding: 1.2rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .two-up p { font-size: 0.9rem; color: var(--ink-2); max-width: none; }
+
+  /* ---------- decision list ---------- */
+  ol.decisions { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); counter-reset: d; }
+  ol.decisions li {
+    background: var(--surface);
+    padding: 1.1rem 1.35rem 1.1rem 3.4rem;
+    position: relative;
+    counter-increment: d;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  ol.decisions li::before {
+    content: counter(d);
+    position: absolute;
+    left: 1.35rem;
+    top: 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  ol.decisions p { font-size: 0.9rem; color: var(--ink-2); max-width: none; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.75rem;
+    font-size: 0.85rem;
+    color: var(--ink-3);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  footer p { font-size: 0.85rem; color: var(--ink-3); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="eyebrow">Analysis &amp; upgrade proposal</div>
+    <h1>Speak Tool Teardown</h1>
+    <p class="lede">
+      The voice packing tool works. The problem is that its bug list keeps regenerating —
+      160 reports over five months, 63 still outstanding, and the same defects filed up to
+      five times across six stations. Here is why, and what to do about it.
+    </p>
+    <div class="meta-line">
+      <span><b>For</b> Varmen</span>
+      <span><b>Scope</b> 6 stations · 160 feedback items · 1,465 lines of Apps Script</span>
+      <span><b>Date</b> 13 Aug 2026</span>
+    </div>
+  </header>
+
+  <!-- ============ CONCEPT ============ -->
+  <section>
+    <div class="sec-head">
+      <div class="eyebrow">Part one</div>
+      <h2>What the tool actually is</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        A Google Apps Script add-on bound to a spreadsheet. It turns the day's order list into a
+        <strong>hands-free audio pick-and-pack stream</strong>. Instead of reading a printed packlist
+        and looking up and down between paper and shelf, the packer hears the order — quantity, product,
+        then postcode — and says <strong>“next”</strong> to advance. Eyes and hands stay on the stock.
+      </p>
+
+      <div class="callout">
+        <h3>The one thing to understand: every product has two names</h3>
+        <p>
+          The tool never reads the marketplace title aloud. Titles are 40-word SEO text — unpronounceable
+          and useless to a packer. Each product carries a second, phonetic name written for the ear,
+          pulled from a shared Names Master Sheet owned by the postage team.
+        </p>
+        <pre><span class="cm">Title  →</span> LEDSone Pack 6 | Vintage LED Dimmable B22 Light Bulb, ST64 8W
+         (Equivalent 60W) 2700K Warm White 806 Lumens Amber Glass | ...
+
+<span class="cm">Name   →</span> S T 6 4 b22 8 wats
+
+<span class="cm">Spoken →</span> :: S T 6 4 b22 8 wats :: 6: :Post Code: W 3 6 H H</pre>
+        <p>
+          <strong>This is why most “it said the wrong thing” reports are data fixes, not code fixes.</strong>
+          The exception is postcodes and numeric codes — those are unbounded, so no dictionary can ever
+          cover them. That distinction turns out to explain the single largest cluster of open bugs.
+        </p>
+      </div>
+
+      <p>
+        The data moves through two tabs. <code>Sheet1</code> is the raw import from Amazon UK/DE/FR/IE,
+        eBay, Wayfair, B&amp;Q and Shopify — one row per line item. A cleaning script projects it into
+        <code>Cleaned Data</code>, the speech-ready queue.
+      </p>
+
+      <div class="flow">Selling platforms  →  <b>Sheet1</b>  <span style="color:var(--ink-3)">169 rows · 17 cols</span>
+                              │
+        cleaning script ──────┤  phonetic name lookup · postcode extraction · combo numbering
+                              ▼
+                       <b>Cleaned Data</b>  <span style="color:var(--ink-3)">140 rows · 18 cols</span>
+                              │
+                       Apps Script builds the utterance
+                              ▼
+                       Browser Web Speech API
+                         ├─ SpeechSynthesis  → speaks it
+                         └─ SpeechRecognition → listens for "next" / "back" / "stop"
+                              ▼
+                            Packer</div>
+
+      <h3>Five order types the business defined</h3>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Type</th><th>What it means</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">1</td><td>Single order, single product</td><td>One customer, one SKU</td></tr>
+            <tr><td class="num">2</td><td>Merge order, single products</td><td>Several orders to the same address — one parcel</td></tr>
+            <tr><td class="num">3</td><td>Single order, multi products</td><td>A <em>combo</em>: one listing, several component SKUs</td></tr>
+            <tr><td class="num">4</td><td>Merge order, multi products</td><td>Several combos to the same address</td></tr>
+            <tr><td class="num">5</td><td>Merge, single <em>and</em> multi</td><td>Mixed</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Types 2–5 generate about a third of all feedback. The packer must hear the <strong>whole parcel</strong>
+        — “component 1 of 3… component 2 of 3…” with the postcode last — or they under-pack.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ ANALYSIS ============ -->
+  <section>
+    <div class="sec-head">
+      <div class="eyebrow">Part two</div>
+      <h2>The analysis</h2>
+      <p class="lede">Every item in the feedback workbook, normalised and counted.</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="n">160</span><span class="k">Reports logged</span></div>
+      <div class="stat is-ok"><span class="n">97</span><span class="k">Marked fixed</span></div>
+      <div class="stat is-crit"><span class="n">37</span><span class="k">Open</span></div>
+      <div class="stat is-crit"><span class="n">26</span><span class="k">Never triaged</span></div>
+      <div class="stat is-accent"><span class="n">8</span><span class="k">Actual problems</span></div>
+    </div>
+
+    <div class="prose">
+      <p>
+        <strong>The 63 outstanding items are not 63 problems. They are eight problems reported 63 times.</strong>
+        The 26 never-triaged items sit almost entirely on the Unit&nbsp;3 Lampshade tab, opened
+        1 Aug 2025 and never reviewed — they are outstanding in practice.
+      </p>
+
+      <div class="tw">
+        <table>
+          <thead>
+            <tr><th>Theme</th><th>Problem</th><th class="num">Items</th><th>Stations</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="ref">C</td><td>Merge / combo not spoken in full</td><td class="num">20</td><td>all 5</td></tr>
+            <tr><td class="ref">A</td><td>Number &amp; postcode pronunciation</td><td class="num">13</td><td>all 5</td></tr>
+            <tr><td class="ref">B</td><td>“Next” voice command misses</td><td class="num">8</td><td>U3 Others, U4</td></tr>
+            <tr><td class="ref">D</td><td>Attribute omitted from speech</td><td class="num">8</td><td>3 stations</td></tr>
+            <tr><td class="ref">E</td><td>Customer note / packlist detail</td><td class="num">6</td><td>all 5</td></tr>
+            <tr><td class="ref">F</td><td>Shipping service &amp; label</td><td class="num">4</td><td>U3 Others, U4</td></tr>
+            <tr><td class="ref">G</td><td>Mapping image wrong</td><td class="num">3</td><td>2 stations</td></tr>
+            <tr><td class="ref">H</td><td>Estate / process</td><td class="num">1</td><td>U3 Lampshade</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <strong>Themes C, A and B alone account for 41 of the 63.</strong> And they recur because of three
+        structural causes that no individual ticket describes.
+      </p>
+    </div>
+
+    <div class="findings">
+      <div class="finding sev-crit">
+        <div class="finding-top">
+          <span class="finding-id">Cause 1</span>
+          <h3>Speech is built as a plain string</h3>
+          <span class="chip crit">13 items</span>
+        </div>
+        <p>
+          There is no SSML anywhere in the codebase. The utterance is concatenated and handed to the
+          browser, which applies English number rules to any digit run. <code>IP20</code> becomes
+          “twenty thousand”. <code>PE11 3TY</code> becomes “P E eleven three T Y”. German
+          <code>00049</code> loses its leading zeros entirely.
+        </p>
+        <p>
+          Every fix so far has been to patch one product name at a time in the Names Master Sheet.
+          That works for names. It cannot work for postcodes — there is a new one every order.
+          <strong>It needs a rule, not a lookup.</strong> The developer's own note on the very first
+          ticket says exactly this: <em>“i can't do for single one, can do it for every think.”</em> He was right.
+        </p>
+        <div class="tickets">FB-001 · FB-032 · FB-042 · FB-048 · FB-049 · FB-050 · FB-138 · FB-148 · FB-149 · FB-151</div>
+      </div>
+
+      <div class="finding sev-crit">
+        <div class="finding-top">
+          <span class="finding-id">Cause 2</span>
+          <h3>Merge orders exist in the warehouse but not in the data</h3>
+          <span class="chip crit">20 items</span>
+        </div>
+        <p>
+          The <code>Merge Order</code> column is populated on <strong>6 of 140 rows</strong>. The tool has
+          almost nothing to group by, so it falls back to matching postcodes — which fails in both directions:
+          two different customers at one postcode get falsely merged, and one customer whose orders carry
+          different postcodes never gets merged at all.
+        </p>
+        <p>
+          This has been closed as <em>“not possible”</em> four times, and the Schmutter tab escalated it with
+          <em>“We need to find a way by MD.”</em> <strong>It is possible.</strong> It is not possible while the
+          script iterates a flat list of rows — which is a data-model problem, not a speech problem.
+        </p>
+        <div class="tickets">FB-035 · FB-036 · FB-038 · FB-064 · FB-071 · FB-073 · FB-075 · FB-079 · FB-140 · FB-145 · FB-152 · FB-153 · FB-154 · FB-159</div>
+      </div>
+
+      <div class="finding sev-warn">
+        <div class="finding-top">
+          <span class="finding-id">Cause 3</span>
+          <h3>Six stations run six independent copies of the script</h3>
+          <span class="chip warn">drives the repeats</span>
+        </div>
+        <p>
+          A fix is six deployments, done by hand. Four Schmutter and Kronen items are word-for-word identical.
+          The same postcode bug is filed five times. One ticket simply reads
+          <em>“everything changed in Unit 4 must also be changed in Unit 3.”</em>
+        </p>
+        <p>
+          Nobody knows which copy is current, because the script has never been in version control.
+        </p>
+        <div class="tickets">FB-059 · FB-142 / FB-156 · FB-145 / FB-159 · FB-154</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CODE ============ -->
+  <section>
+    <div class="sec-head">
+      <div class="eyebrow">Part three</div>
+      <h2>What the code proved</h2>
+      <p class="lede">
+        All 1,465 lines read. Every cause above is confirmed at line level — and five defects turned up
+        that nobody has ever filed, because no packer could see them.
+      </p>
+    </div>
+
+    <div class="findings">
+      <div class="finding sev-crit">
+        <div class="finding-top">
+          <span class="finding-id">C1</span>
+          <h3>The tab is written twice, and the tool depends on the leftovers</h3>
+          <span class="chip crit">Unreported</span>
+        </div>
+        <p>
+          <code>Cleaned Data</code> is written by two functions with different column counts. The first writes
+          18 columns; the second overwrites only the first 15. <strong>Columns 16, 17 and 18 survive untouched</strong>
+          — which is exactly what the live sheet shows, and why it has duplicate headers.
+        </p>
+        <pre><span class="cm">Merge SKU.gs:58</span>  writes 18 cols  →  [ …Sheet1 headers…, "SKU Combined" ]
+<span class="cm">cleaned.gs:153 </span>  writes 15 cols  →  overwrites A–O only
+
+<span class="cm">result:</span>  P = Component  <span class="cm">(leftover)</span>
+         Q = Send Order Instruction  <span class="cm">(leftover)</span>
+         R = <b>SKU Combined</b>  <span class="cm">(leftover — and never rebuilt)</span></pre>
+        <p>
+          A later step then <strong>deletes rows</strong> and rewrites A–O. Column R does not shift with them,
+          so it is now misaligned with its own rows. And the speak tool groups orders by that column,
+          in preference to <code>Combo SKU</code>:
+        </p>
+        <pre><span class="cm">Lithursan.gs:64</span>
+const groupKey = skuCombined !== "" ? skuCombined : comboSku;</pre>
+        <p>
+          <strong>Order grouping runs off a stale, row-shifted column.</strong> This is the best explanation yet
+          for combos that group correctly one day and not the next — and it may be sitting underneath several
+          Theme C reports. <strong>Fix this before the merge-order rework, not after.</strong>
+        </p>
+        <div class="tickets">Likely underneath FB-075 · FB-079 · and part of Theme C</div>
+      </div>
+
+      <div class="finding sev-crit">
+        <div class="finding-top">
+          <span class="finding-id">C2</span>
+          <h3>Two ticket threads are the same bug</h3>
+          <span class="chip crit">Unreported</span>
+        </div>
+        <p>
+          One function blanks a postcode whenever it matches <em>the row above</em> — adjacency only, with no
+          customer check. That is the “same postcode” complaint. The <em>next</em> function then clears column F
+          wherever the postcode is empty — and column F is <strong>Instruction QR</strong>.
+        </p>
+        <pre><span class="cm">cleaned.gs:167</span>  if (current === previous) valuesD[i-1][0] = '';   <span class="cm">// postcode gone</span>
+<span class="cm">cleaned.gs:190</span>  if (!valuesD[i][0]) valuesF[i][0] = '';           <span class="cm">// QR gone too</span></pre>
+        <p>
+          <strong>Deleting a postcode silently deletes that order's QR instruction.</strong> Two teams have been
+          filing two separate threads against one root cause for months. It also explains the measured fill
+          rates: Post Code 109/140, Instruction QR 5/140.
+        </p>
+        <div class="tickets">FB-071 · FB-116  ⟷  FB-060 · FB-070 · FB-078</div>
+      </div>
+
+      <div class="finding sev-crit">
+        <div class="finding-top">
+          <span class="finding-id">C3</span>
+          <h3>Four items marked “Done” were never built</h3>
+          <span class="chip crit">Unreported</span>
+        </div>
+        <p>
+          The quantity-based pause is computed, passed to the browser, and <strong>never read</strong>.
+          The hold feature has an array, CSS and render logic — but nothing ever puts anything into it, and
+          there is no Hold button. <code>html2canvas</code> is loaded from a CDN and never called. And the
+          pause button calls <code>synth.pause()</code> — while <code>synth.resume()</code> appears
+          <strong>nowhere in the codebase</strong>, so pause is one-way.
+        </p>
+        <p>
+          All four are marked <em>True</em> in the feedback sheet. This is the clearest possible argument for
+          adding a verification step: right now “Done” carries no information.
+        </p>
+        <div class="tickets">FB-009 hold · FB-012 pause · FB-014 quantity pause · FB-021 screenshot</div>
+      </div>
+
+      <div class="finding sev-warn">
+        <div class="finding-top">
+          <span class="finding-id">C4</span>
+          <h3>The tool triggers its own voice commands</h3>
+          <span class="chip warn">Unreported</span>
+        </div>
+        <p>
+          Nothing pauses speech recognition while the tool is speaking. The microphone stays open, the tool
+          says <em>“Post Code”</em> out loud, the mic hears it, and the handler matches on
+          <code>includes("post code")</code> — firing the postcode command at itself.
+        </p>
+        <p>
+          Separately, recognition is stopped and restarted on the same line, which throws — and the error
+          handler does not restart it. <strong>Recognition can die permanently mid-session</strong>, with no
+          indication to the packer. That is the ticket that reads
+          <em>“Next command is not listening enough — getting tired from it.”</em>
+        </p>
+        <div class="tickets">FB-046 · FB-047 · FB-055 · FB-132 · FB-133</div>
+      </div>
+
+      <div class="finding sev-warn">
+        <div class="finding-top">
+          <span class="finding-id">C5</span>
+          <h3>A two-character bug silences whole orders</h3>
+          <span class="chip warn">Unreported</span>
+        </div>
+        <p>
+          The SKU lookup strips <strong>three</strong> characters to remove a <code>"PK"</code> suffix that is
+          <strong>two</strong> characters long. It works by luck for single-digit packs and breaks for everything
+          else. And the line immediately after blanks the <strong>quantity</strong> whenever the name lookup fails.
+        </p>
+        <pre><span class="cm">cleaned.gs:112</span>  rawSku.slice(0, -3)   <span class="cm">// "…10PK" → "…1"  ✗</span>
+<span class="cm">cleaned.gs:116</span>  if (!name) quantity = '';   <span class="cm">// miss → row says nothing at all</span></pre>
+        <p>
+          One line, two ticket threads, and it accounts for the blank cells measured in the data
+          (6 blank names, 6 blank quantities).
+        </p>
+        <div class="tickets">FB-054 · FB-072 · FB-150</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <h3>One correction worth flagging</h3>
+      <p>
+        Before reading the code I recommended checking whether the Names Master Sheet actually propagates
+        to the stations — the worry being that months of pronunciation fixes had silently never landed.
+        <strong>The code answers it: the sheet is read live on every run.</strong> Nothing was lost that way.
+        The real fault is the SKU lookup bug in C5, one line below it.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ THE IDEA ============ -->
+  <section>
+    <div class="sec-head">
+      <div class="eyebrow">Part four</div>
+      <h2>The upgrade</h2>
+      <p class="lede">
+        Ranked by items closed per unit of effort. The first block ships in a day.
+      </p>
+    </div>
+
+    <h3>Day one — seven small changes, eight reported issues closed</h3>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th>Where</th><th>Change</th><th>Closes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="ref">cleaned.gs:112</td><td><code>slice(0,&nbsp;-3)</code> → <code>slice(0,&nbsp;-2)</code></td><td class="ref">FB-072</td></tr>
+          <tr><td class="ref">cleaned.gs:116</td><td>Stop blanking quantity when the name lookup fails</td><td class="ref">FB-054, FB-150</td></tr>
+          <tr><td class="ref">cleaned.gs:27</td><td><code>getValues()</code> → <code>getDisplayValues()</code> — keeps leading zeros</td><td class="ref">FB-148, FB-151</td></tr>
+          <tr><td class="ref">cleaned.gs:93</td><td>Drop the <code>merge order total: N</code> prefix — say “Merge order” once</td><td class="ref">FB-140</td></tr>
+          <tr><td class="ref">Lithursan.gs:886</td><td>Remove the <code>stop()</code>; restart recognition from <code>onerror</code></td><td class="ref">FB-132, FB-133</td></tr>
+          <tr><td class="ref">Lithursan.gs:188</td><td>Keep the space inside the postcode so outward/inward don't merge</td><td class="ref">FB-042, FB-050</td></tr>
+          <tr><td class="ref">Lithursan.gs:660</td><td>Add the missing <code>synth.resume()</code></td><td class="ref">FB-012</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Then, in priority order</h3>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th class="num">#</th><th>Change</th><th class="num">Closes</th><th>Effort</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td><strong>Fix the double write (C1)</strong></td>
+            <td class="num">—</td>
+            <td><span class="chip acc">S</span></td>
+            <td>Not in any ticket. Do it first — everything about grouping is built on this column.</td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td><strong>Pronunciation rule engine</strong><br><span style="color:var(--ink-3)">Classify tokens before speaking: postcode, IP rating, wattage, cable metres, quantity</span></td>
+            <td class="num">13</td>
+            <td><span class="chip acc">S</span></td>
+            <td>Replaces per-product patching. Also fixes transformer order: type → voltage → wattage.</td>
+          </tr>
+          <tr>
+            <td class="num">3</td>
+            <td><strong>Voice reliability</strong><br><span style="color:var(--ink-3)">Gate the mic during speech · restart on error · USB foot pedal fallback</span></td>
+            <td class="num">8</td>
+            <td><span class="chip acc">M</span></td>
+            <td>The pedal is the change most likely to end this thread for good — it works when wifi doesn't.</td>
+          </tr>
+          <tr>
+            <td class="num">4</td>
+            <td><strong>Real merge-order model</strong><br><span style="color:var(--ink-3)">Group by customer + address, not postcode. Speak the parcel as a unit.</span></td>
+            <td class="num">20</td>
+            <td><span class="chip acc">L</span></td>
+            <td>The one to take back to MD with a design instead of a “not possible”.</td>
+          </tr>
+          <tr>
+            <td class="num">5</td>
+            <td><strong>Pre-flight validation</strong><br><span style="color:var(--ink-3)">Refuse to queue a row with no name, quantity or postcode</span></td>
+            <td class="num">8</td>
+            <td><span class="chip acc">S</span></td>
+            <td>Silence is the worst failure mode — the packer can't tell “nothing to say” from “tool broke”.</td>
+          </tr>
+          <tr>
+            <td class="num">6</td>
+            <td><strong>One shared script library</strong><br><span style="color:var(--ink-3)">Per-station config; script into git</span></td>
+            <td class="num">—</td>
+            <td><span class="chip acc">M</span></td>
+            <td>Stops the repeats. Prerequisite for every fix landing once instead of six times.</td>
+          </tr>
+          <tr>
+            <td class="num">7</td>
+            <td>Customer note handling</td>
+            <td class="num">6</td>
+            <td><span class="chip warn">Blocked</span></td>
+            <td>Two stations want opposite behaviour — needs your decision.</td>
+          </tr>
+          <tr>
+            <td class="num">8</td>
+            <td>Shipping service &amp; label speech</td>
+            <td class="num">4</td>
+            <td><span class="chip warn">Blocked</span></td>
+            <td>The field genuinely isn't in the import. Blocked upstream, not a tool bug.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-up">
+      <div>
+        <h3>How the merge order should sound</h3>
+        <p>
+          Postcode last and said <strong>once</strong>. Quantity before the name. Pack sequence ordered —
+          bulb first, shade last. “Merge order” said once, then components enumerated.
+        </p>
+        <pre>"Merge order. Three components."
+"Component one of three. Two.
+ Forty centimetre hemp shade."
+"Component two of three. One.
+ One metre short holder pendant full set."
+"Component three of three. One.
+ Reducer plate white."
+"Instruction QR available."
+"Post code. C M — six. Three — Z — B."</pre>
+      </div>
+      <div>
+        <h3>Fix the feedback loop itself</h3>
+        <p>
+          The <code>Ref</code> column exists on every station tab and is <strong>empty on all 160 rows</strong>.
+          Nothing has an ID, so nothing can be closed and nobody can tell a repeat from a new report.
+        </p>
+        <p>
+          Replace True/False with <strong>Open · In progress · Fixed · Won't fix · Blocked upstream</strong> —
+          “False” currently means both <em>not done yet</em> and <em>refused</em>, which is exactly why items
+          keep coming back. Record which station and script version a fix landed in, and verify before closing.
+        </p>
+        <p>
+          Every item now has an ID in the register — paste them back into <code>Ref</code>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DECISIONS ============ -->
+  <section>
+    <div class="sec-head">
+      <div class="eyebrow">Part five</div>
+      <h2>Decisions I need from you</h2>
+    </div>
+
+    <ol class="decisions">
+      <li>
+        <h3>Customer note — speak it, or just show it?</h3>
+        <p>Unit 4 wants it displayed but <em>not</em> spoken. Unit 3 Lampshade wants it spoken. Direct conflict — pick one, or I build it as a per-station setting.</p>
+      </li>
+      <li>
+        <h3>Can the platform import add a <span class="mono">Shipping Service</span> column?</h3>
+        <p>Four items — next-day sticker, Evri/Royal Mail, “S label 2 kilos” — are blocked without it. The developer's note “not found in the packlist” is correct: the data doesn't exist. Someone needs to own this.</p>
+      </li>
+      <li>
+        <h3>Approve consolidating six script copies into one shared library?</h3>
+        <p>It changes how deployments work across all six stations. I won't start without sign-off.</p>
+      </li>
+      <li>
+        <h3>Budget for USB foot pedals — roughly £15 × 6?</h3>
+        <p>The most reliable fix for “getting tired from it”. Hands stay free, and it works when the wifi doesn't.</p>
+      </li>
+      <li>
+        <h3>Who owns the combo→image mapping on the dashboard?</h3>
+        <p>Three items need a reconciliation pass against it and I don't know whose system it is.</p>
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    <p>
+      <strong>Basis and limits.</strong> Feedback figures are from all six station tabs of the
+      <em>Speak tool feedbacks and correction</em> workbook. Column fill rates are from the live
+      Unit 3 Lampshade sheet. Code findings are from reading the exported Apps Script — five files,
+      1,465 lines — <strong>not from running it</strong>; each should be confirmed against a real run
+      before it is closed, which is the verification step the register is missing today.
+    </p>
+    <p>
+      Only the Unit 3 Lampshade script was exported. The other five stations have never been diffed
+      against it, so the drift between copies is still unmeasured.
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

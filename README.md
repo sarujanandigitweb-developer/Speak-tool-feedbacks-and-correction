@@ -11,6 +11,7 @@ reads warehouse pick-and-pack orders aloud to packers across six stations.
 
 | If you want… | Read |
 |---|---|
+| **The submission report — give Varmen this** | [standalone HTML](handover/speak-tool-report-standalone.html) (open/email/print) · [published page](https://claude.ai/code/artifact/a8b49492-794d-4311-99b0-c4aec74baab5) |
 | The summary and what I need from you | [handover/handover-note.md](handover/handover-note.md) |
 | How the tool actually works | [documentation/01-system-concept.md](documentation/01-system-concept.md) |
 | **The bugs, line by line** | [documentation/02-code-walkthrough.md](documentation/02-code-walkthrough.md) |
