@@ -122,7 +122,8 @@
         var adj   = qty * packSize(parent);
         var link  = attr(pd.querySelector('div.fw-bold.border-bottom a'),'href');
         var imgs  = pd.querySelectorAll('img');
-        var mainImg = imgs.length ? attr(imgs[imgs.length-1],'src') : '';
+        var mainImgEl = imgs.length ? imgs[imgs.length-1] : null;
+        var mainImg = mainImgEl ? attr(mainImgEl,'src') : '';
 
         var combos = pd.querySelectorAll('label.col-3.mb-3');
         if (combos.length){
@@ -135,19 +136,26 @@
               sku:csku, combined:parent, title:title, link:link,
               colourRaw: t.length>1 ? txt(t[1]) : '',
               qty: cq ? Number(String(txt(cq)).replace(/[^0-9.]/g,''))||adj : adj,
-              img: attr(it.querySelector('img'),'src') || mainImg
+              img: attr(it.querySelector('img'),'src') || mainImg,
+              // The element itself, so the pack-list extension can zoom the exact
+              // picture of the component being spoken. Never serialised.
+              imgEl: it.querySelector('img') || mainImgEl
             }));
           }
         } else {
           // Non-combo product: its own SKU, and no combined string.
           lines.push(makeLine({sku:parent, combined:'', title:title, link:link,
-                               colourRaw:'', qty:adj, img:mainImg}));
+                               colourRaw:'', qty:adj, img:mainImg, imgEl:mainImgEl}));
         }
       }
       if (!lines.length) continue;
 
       orders.push({
         customer:customer, address:address, platform:platform, price:price,
+        // The <li> this order was read from. The pack-list extension scrolls to
+        // it, so the page moves with the speech. Never serialised - persist()
+        // copies named fields only, so this cannot reach JSON.stringify.
+        node:node,
         source:sourceName||'', lines:applyPriority(lines),
         // Fields the pack list does NOT carry. They exist only because the team
         // types them in, so the tool owns them now instead of a spreadsheet.
@@ -163,7 +171,7 @@
     return {
       sku:sku, combined:String(o.combined||'').trim().toUpperCase(),
       title:o.title||'', link:o.link||'', img:o.img||productImageSot(sku),
-      qty:o.qty||1, name:name,
+      qty:o.qty||1, name:name, imgEl:o.imgEl||null,
       colour: productColour(sku) || String(o.colourRaw||'').trim(),
       type: productType(sku,name)
     };
