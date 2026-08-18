@@ -12,7 +12,7 @@ what we do today through Excel/Google Sheets?
 ## 1. Summary
 
 The pack list HTML **already contains most of what the Speak Tool needs**. I confirmed this against
-17 real pack list files saved under `speak_tool/uploads/`, and against an existing Flask prototype
+16 real pack list files saved under `speak_tool/uploads/`, and against an existing Flask prototype
 in this repository (`speak_tool/app.py`, dated July 2025) that already scrapes those files into the
 exact `Sheet1` layout we use today.
 
@@ -31,7 +31,7 @@ contain would come from**, because those four are what the current spreadsheet a
 
 ## 2. What the pack list HTML already gives us
 
-Measured by parsing the saved pack lists in `speak_tool/uploads/` (17 files, 73 KB – 1.2 MB each).
+Measured by parsing the saved pack lists in `speak_tool/uploads/` (16 files, 73 KB – 1.2 MB each).
 The DOM contract below is not guesswork; it is the selector set the existing prototype already
 relies on and which I re-verified.
 
@@ -69,11 +69,11 @@ regardless of which option below is chosen.**
 
 ## 3. What the pack list HTML does NOT give us
 
-This is the part that decides the answer. I searched all 17 pack list files for each of these.
+This is the part that decides the answer. I searched all 16 pack list files for each of these.
 
 ### 3.1 Three fields that exist only because a human types them into the sheet
 
-| Field | Occurrences in 17 pack lists | Rows populated in the live `Sheet1` |
+| Field | Occurrences in 16 pack lists | Rows populated in the live `Sheet1` |
 |---|---:|---:|
 | `Instruction QR` | **0** | 23 / 169 |
 | `Send Order Instruction` | **0** | 3 / 169 |
@@ -234,7 +234,7 @@ It is correctly excluded from git by `.gitignore` — I verified this. Two point
 
 | Source | What it establishes |
 |---|---|
-| `speak_tool/uploads/` — 17 pack list files, Jun–Jul 2025 | The DOM contract, and that combos, merges, images and prices are all present |
+| `speak_tool/uploads/` — 16 pack list files, Jun–Jul 2025 | The DOM contract, and that combos, merges, images and prices are all present |
 | `speak_tool/app.py` | A working pack list parser already exists and already produces the `Sheet1` layout; also the pack-code map in §2 |
 | Live `Sheet1` (`1AMQMzxu…`), 169 rows | `Instruction QR` 23, `Send Order Instruction` 3, `Status` 20 — none of which appear in any pack list file |
 | `/documentation/02-code-walkthrough.md` | The one-shot injection model the current tool is built on |

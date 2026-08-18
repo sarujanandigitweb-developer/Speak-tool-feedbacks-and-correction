@@ -1,5 +1,9 @@
 # Unit 3 Lampshade — Live Order Collection Analysis
 
+> **SUPERSEDED 2026-08-18.** This records the previous collection rule, in which every LS-prefixed
+> product was collectible and the whole pack list was scanned for all of them. That rule has been
+> removed. See [`unit3-lampshade-collection-rule-2026-08-18.md`](unit3-lampshade-collection-rule-2026-08-18.md).
+
 **Source:** [Unit 3 Lampshade speak tool](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0) · `Sheet1`, fetched 2026-08-14
 **Settings:** `PP_MAX_LAMPSHADE_COLLECTION = 15` · `PP_ALLOW_LINE_SPLIT = true`
 **Raw output:** [evidence/unit3-lampshade-order-analysis.txt](../evidence/unit3-lampshade-order-analysis.txt)

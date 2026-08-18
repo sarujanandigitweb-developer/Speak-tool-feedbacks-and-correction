@@ -88,7 +88,7 @@ Pack list HTML from the dispatch dashboard (`dashboard.digitweblk.com`)
 
 ```
 speak_tool/app.py          — working pack-list parser (BeautifulSoup), already produces the Sheet1 layout
-speak_tool/uploads/        — 17 real pack list files, for regression fixtures
+speak_tool/uploads/        — 16 real pack list files, for regression fixtures
 scripts/Unit 3 Lampshade/packing-priority.gs — the packing rules, to be ported as-is
 ```
 
@@ -248,7 +248,7 @@ after the postcode.
 | --- | --- |
 | 1 | The live Google Sheets tool will be unchanged and still working at the end of the day |
 | 2 | The new build will read a pack list HTML file with no spreadsheet in the path |
-| 3 | All 17 pack list files in `speak_tool/uploads/` will parse without error |
+| 3 | All 16 pack list files in `speak_tool/uploads/` will parse without error |
 | 4 | Orders, components, combo sets, images, quantities and postcodes will match what the current pipeline produces for the same input |
 | 5 | Pack size will be applied from the SKU suffix map |
 | 6 | Every `LS`-prefixed SKU will classify as a lampshade |

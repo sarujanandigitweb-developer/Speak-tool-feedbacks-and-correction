@@ -86,42 +86,20 @@ function readRowAndSpeak() {
     return "";
   }
 
-  // One cell can now carry TWO batches - a list-1 ("these orders only") batch and
-  // a list-2 ("whole pack list") batch can both trigger on the same order, each
-  // with its own limit of 15. A BATCH line opens each block, so the text is split
-  // on those and every block is drawn as its own section inside one card.
-  //
-  //   BATCH|<n>|<total>|<max>|<OVERFLOW or empty>|<RUN or FULL>
-  //   ITEM|<skus>|<size>|<colour>|<qty>|<orders>
-  function parseCollectionBatches(raw) {
-    const out = [];
-    String(raw).split("\n").forEach(function (ln) {
+  function buildCollectionView(raw) {
+    const lines = String(raw).split("\n");
+    let batch = "", total = "", max = "", overflow = false;
+    const items = [];
+    lines.forEach(function (ln) {
       const p = ln.split("|");
-      if (p[0] === "BATCH") {
-        out.push({
-          batch: p[1], total: p[2], max: p[3],
-          overflow: (p[4] === "OVERFLOW"),
-          mode: (p[5] || "").trim(),
-          items: []
-        });
-      } else if (p[0] === "ITEM" && out.length) {
-        out[out.length - 1].items.push({ sku: p[1], size: p[2], colour: p[3], qty: p[4], order: p[5] });
-      }
+      if (p[0] === "BATCH") { batch = p[1]; total = p[2]; max = p[3]; overflow = (p[4] === "OVERFLOW"); }
+      else if (p[0] === "ITEM") { items.push({ sku: p[1], size: p[2], colour: p[3], qty: p[4], order: p[5] }); }
     });
-    return out;
-  }
 
-  // Which scan rule produced this batch. The packer needs to know whether the
-  // batch covers only the next few orders or the whole pack list, because that
-  // decides whether they will be back at the shelf shortly.
-  function collectionScopeLabel(mode) {
-    if (mode === "RUN")  return "These orders only";
-    if (mode === "FULL") return "Whole pack list";
-    return "";
-  }
-
-  function buildCollectionCards(items) {
-    return items.map(function (it) {
+    // One card per lampshade, each carrying its product image.
+    // An ITEM may hold several SKUs joined by " + " when they share size+colour,
+    // so the image is taken from the first of those SKUs that has one.
+    const cardsHtml = items.map(function (it) {
       const img = collectionImageFor(it.sku);
       const imgHtml = img
         ? '<img src="' + img + '" alt="' + it.sku + '" style="width:100%; height:170px;'
@@ -133,7 +111,7 @@ function readRowAndSpeak() {
 
       return '<div style="flex:0 0 232px; background:#fffdf8; border:2px solid #e0c9a4;'
            + ' border-radius:14px; padding:12px; text-align:left; box-shadow:0 2px 5px rgba(0,0,0,.08);">'
-           // image with the quantity badge sitting on it - the number the packer acts on
+           // image with the quantity badge sitting on it — the number the packer acts on
            + '<div style="position:relative;">'
            +   imgHtml
            +   '<div style="position:absolute; top:6px; right:6px; background:#b45f06; color:#fff;'
@@ -144,58 +122,22 @@ function readRowAndSpeak() {
            + '<div style="font-size:19px; font-weight:bold; color:#3b2a12; margin-top:10px;'
            + ' word-break:break-all;">' + it.sku + '</div>'
            + '<div style="font-size:17px; color:#5a2d03; margin-top:3px;">' + it.colour + '</div>'
-           // Cage shades carry no millimetre size, so the line is omitted rather
-           // than left as an empty grey strip under the colour.
-           + (it.size ? '<div style="font-size:16px; color:#7a6a55; margin-top:2px;">' + it.size + '</div>' : '')
+           + '<div style="font-size:16px; color:#7a6a55; margin-top:2px;">' + it.size + '</div>'
            + '<div style="margin-top:8px; background:#f3e3c8; border-radius:8px; padding:5px 8px;'
            + ' font-size:18px; font-weight:bold; color:#8a4405;">Take ' + it.qty + '</div>'
            + '<div style="font-size:13px; color:#9a8a75; margin-top:6px;">' + it.order + '</div>'
            + '</div>';
     }).join("");
-  }
 
-  function buildCollectionView(raw) {
-    const batches = parseCollectionBatches(raw);
-    if (!batches.length) return "";
-
-    const sections = batches.map(function (b, i) {
-      const scope = collectionScopeLabel(b.mode);
-      return '<div style="' + (i ? 'margin-top:22px; padding-top:20px; border-top:3px dashed #e0c9a4;' : '') + '">'
-           + '<div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center;'
-           + ' gap:12px; margin:0 0 14px;">'
-           +   '<span style="font-size:22px; font-weight:bold; color:#5a2d03;">Collection Batch ' + b.batch + '</span>'
-           + (scope
-               ? '<span style="font-size:15px; font-weight:bold; color:#8a4405; background:#f3e3c8;'
-                 + ' border-radius:99px; padding:4px 14px;">' + scope + '</span>'
-               : '')
-           +   '<span style="font-size:18px; font-weight:bold; color:#5a2d03;">' + b.total + ' / ' + b.max + '</span>'
-           + '</div>'
-           + '<div style="display:flex; flex-wrap:wrap; gap:16px; justify-content:center;">'
-           + buildCollectionCards(b.items) + '</div>'
-           + (b.overflow
-               ? '<div style="text-align:center; color:#a01c10; font-weight:bold; margin-top:8px;">'
-                 + 'This order alone exceeds the limit</div>'
-               : '')
-           + '</div>';
-    }).join("");
-
-    // Two batches means two trips to two different places, so the heading says how
-    // many rather than letting the packer discover the second one by scrolling.
-    const heading = batches.length > 1
-      ? '&#128722; LAMPSHADE COLLECTION &mdash; ' + batches.length + ' BATCHES'
-      : '&#128722; LAMPSHADE COLLECTION';
-
-    // align-self:flex-start stops #display (a flex row) stretching this box to
-    // the full height of the panel. Without it the beige card ran to the bottom
-    // of the screen with a large empty area under COLLECTION COMPLETE.
-    return '<div style="font-family: sans-serif; max-width:2100px; margin:0 auto;'
-         + ' align-self:flex-start; border:4px solid #b45f06;'
+    return '<div style="font-family: sans-serif; max-width:1560px; margin:0 auto; border:4px solid #b45f06;'
          + ' background:#fff6e8; border-radius:16px; padding:24px 28px;">'
-         + '<div style="font-size:30px; font-weight:bold; color:#8a4405; text-align:center;'
-         + ' margin-bottom:16px;">' + heading + '</div>'
-         + sections
+         + '<div style="font-size:30px; font-weight:bold; color:#8a4405; text-align:center;">🛒 LAMPSHADE COLLECTION</div>'
+         + '<div style="font-size:22px; font-weight:bold; color:#5a2d03; text-align:center; margin:6px 0 18px;">Collection Batch ' + batch + '</div>'
+         + '<div style="display:flex; flex-wrap:wrap; gap:16px; justify-content:center;">' + cardsHtml + '</div>'
+         + '<div style="margin-top:18px; font-size:24px; font-weight:bold; color:#5a2d03; text-align:center;">Collection Total: ' + total + ' / ' + max + '</div>'
+         + (overflow ? '<div style="text-align:center; color:#a01c10; font-weight:bold; margin-top:6px;">This order alone exceeds the limit</div>' : '')
          + '<div style="margin-top:20px; text-align:center; background:#b45f06; color:#fff; font-size:20px;'
-         + ' font-weight:bold; border-radius:10px; padding:12px;">COLLECTION COMPLETE &mdash; press Next</div>'
+         + ' font-weight:bold; border-radius:10px; padding:12px;">COLLECTION COMPLETE — press Next</div>'
          + '</div>';
   }
 
@@ -387,10 +329,6 @@ function readRowAndSpeak() {
       // Build speech segments for all rows in this group
       const speechSegments = [];
       const rowImages = []; // Store each row's image URL
-      // Quantity per spoken component, kept in step with speechSegments and
-      // rowImages. The card shows the count for the component being spoken RIGHT
-      // NOW, so the packer reads one number and picks it.
-      const rowQtys = [];
       
       group.forEach((item, groupIdx) => {
         const groupRow = item.row;
@@ -427,7 +365,6 @@ function readRowAndSpeak() {
 
         speechSegments.push(segmentText);
         rowImages.push(rowImageUrl);
-        rowQtys.push(quantity);
       });
       
       // Postcode, then note. Both are spoken as part of the LAST component's
@@ -464,7 +401,6 @@ function readRowAndSpeak() {
           // Defensive: an order with no component rows still says the postcode.
           speechSegments.push(tailText);
           rowImages.push(imageUrl);
-          rowQtys.push("");
         }
       }
 
@@ -482,40 +418,50 @@ function readRowAndSpeak() {
       const pauseTime = totalQuantity * 1000;
 
       const display = `
-        <div class="ordercard">
-          <div class="oc-grid">
-            <div class="oc-left">
-              <p class="oc-lab">Title</p>
-              <p class="oc-title">${title}</p>
-              <p class="oc-name">${group.map(g => {
+        <div style="text-align: center; font-family: sans-serif; margin-bottom: 40px;">
+          <div style="display: flex; justify-content: center; gap: 30px; align-items: center;">
+            <div style="flex: 1; font-size: 14px; text-align: left; padding-right: 20px;">
+              <div><b>Title:</b> ${title}</div>
+              <div style="color:blue; font-weight:bold;">${group.map(g => {
                 const n = g.row[colIndex["Name"]];
                 return n ? n.toString() : "";
-              }).filter(n => n).join(" + ")}</p>
-              <div class="oc-chips">
-                <span class="chip">${platform || "&nbsp;"}</span>
-                ${qr !== "" ? '<span class="chip chip-alert">' + qr + '</span>' : ""}
+              }).filter(n => n).join(" + ")}</div>
+              <div style="margin: 6px 0;">
+                <span style="background:#f1f3f7; border-radius:16px; padding:4px 12px; font-weight: bold; color:#004080;">
+                  ${platform || " "}
+                </span>
               </div>
-              ${status ? '<p class="oc-status">' + status + '</p>' : ""}
+              <div style="color:#c10000;">
+                ${qr !== "" ? qr : ""}
+              </div>
+              <div style="margin-top: 20px; font-weight: bold; font-size: 25px; color: #d10000;">
+                ${status}
+              </div>
             </div>
-            <div class="oc-media">
-              <img id="mainImage" src="${imageUrl}" alt="" onerror="this.src='https://via.placeholder.com/150';" onclick="zoomImageClicked()" />
-              <div class="oc-qty"><span class="oc-qty-x">&times;</span><span id="mainQty">&mdash;</span></div>
-              <div class="oc-qty-cap">this item</div>
+            <div style="flex: 1; max-width: 300px; text-align: center;">
+              <img id="mainImage" src="${imageUrl}" style="max-height: 400px; max-width: 100%; border-radius: 16px; border: 6px solid limegreen; cursor: pointer;" onerror="this.src='https://via.placeholder.com/150';" onclick="zoomImageClicked()" />
             </div>
-            <div class="oc-right">
-              <p class="oc-price">\u00A3${price ? price.toString().replace(/[^0-9.]/g, '') || '0.00' : '0.00'}</p>
-              <p class="oc-lab">Deliver to</p>
-              <p class="oc-cust">${(customerInfo || "").replace(/\n/g, "<br/>")}</p>
-              <p class="oc-post">${postCode}</p>
-              ${sendOrderInstruction ? '<p class="oc-note"><span class="oc-note-lab">Note</span>' + sendOrderInstruction + '</p>' : ""}
+            <div style="flex: 1; font-size: 14px; text-align: left;">
+              <div style="background:#dbe8ff; padding:3px 16px; border-radius:28px; font-size: 18px; color:#004080; font-weight:bold;">
+                \u00A3 ${price ? price.toString().replace(/[^0-9.]/g, '') || '0.00' : '0.00'}
+              </div>
+              <div style="margin-top: 12px; line-height: 1.6; font-size: 15px;">
+                ${(customerInfo || "").replace(/\n/g, "<br/>")}<br/>
+                <b style="font-size: 18px;">${postCode}</b><br/>
+              </div>
+              <div style="margin-top: 12px; font-size: 15px; color: #ff0000;">
+                ${sendOrderInstruction ? `<b>Send Order Instruction:</b> ${sendOrderInstruction}` : ""}
+              </div>
             </div>
           </div>
-          <div class="oc-foot">
-            <div class="oc-foot-qty">${group.map(g => {
+          <div style="padding-top: 20px; font-size: 44px; font-weight: bold;">
+            <div style="background: #d4edda; border-radius: 20px; display: inline-block; padding: 6px 400px; color: #004080;">
+              ${group.map(g => {
                 const qty = g.row[colIndex["Quantity"]];
-                return qty ? "&times; " + qty.toString() : "";
-              }).filter(q => q).join(" &nbsp;+&nbsp; ")}</div>
-            <div class="oc-foot-sku">${groupKey}</div>
+                return qty ? "x " + qty.toString() : "";
+              }).filter(q => q).join(" + ")}
+            </div>
+            <div style="font-size: 22px; font-weight: normal; margin-top: 6px;">${groupKey}</div>
           </div>
         </div>`;
 
@@ -524,7 +470,6 @@ function readRowAndSpeak() {
         comboImages: comboImages,
         mainImageUrl: imageUrl,
         rowImages: rowImages,
-        rowQtys: rowQtys,
         pauseTime: pauseTime
       });
 
@@ -618,34 +563,44 @@ function readRowAndSpeak() {
       const pauseTime = (parseInt(quantity) || 1) * 1000;
 
       const display = `
-        <div class="ordercard">
-          <div class="oc-grid">
-            <div class="oc-left">
-              <p class="oc-lab">Title</p>
-              <p class="oc-title">${title}</p>
-              <p class="oc-name">${name}</p>
-              <div class="oc-chips">
-                <span class="chip">${platform || "&nbsp;"}</span>
-                ${qr && qr.toLowerCase() !== "no instruction qr" ? '<span class="chip chip-alert">' + qr + '</span>' : ""}
+        <div style="text-align: center; font-family: sans-serif; margin-bottom: 40px;">
+          <div style="display: flex; justify-content: center; gap: 30px; align-items: center;">
+            <div style="flex: 1; font-size: 14px; text-align: left; padding-right: 20px;">
+              <div><b>Title:</b> ${title}</div>
+              <div style="color:blue; font-weight:bold;">${name}</div>
+              <div style="margin: 6px 0;">
+                <span style="background:#f1f3f7; border-radius:16px; padding:4px 12px; font-weight: bold; color:#004080;">
+                  ${platform || " "}
+                </span>
               </div>
-              ${status ? '<p class="oc-status">' + status + '</p>' : ""}
+              <div style="color:#c10000;">
+                ${qr && qr.toLowerCase() !== "no instruction qr" ? qr : ""}
+              </div>
+              <div style="margin-top: 20px; font-weight: bold; font-size: 25px; color: #d10000;">
+                ${status}
+              </div>
             </div>
-            <div class="oc-media">
-              <img id="mainImage" src="${imageUrl}" alt="" onerror="this.src='https://via.placeholder.com/150';" onclick="zoomImageClicked()" />
-              <div class="oc-qty"><span class="oc-qty-x">&times;</span><span id="mainQty">&mdash;</span></div>
-              <div class="oc-qty-cap">this item</div>
+            <div style="flex: 1; max-width: 300px; text-align: center;">
+              <img id="mainImage" src="${imageUrl}" style="max-height: 400px; max-width: 100%; border-radius: 16px; border: 6px solid limegreen; cursor: pointer;" onerror="this.src='https://via.placeholder.com/150';" onclick="zoomImageClicked()" />
             </div>
-            <div class="oc-right">
-              <p class="oc-price">\u00A3${price ? price.toString().replace(/[^0-9.]/g, '') || '0.00' : '0.00'}</p>
-              <p class="oc-lab">Deliver to</p>
-              <p class="oc-cust">${(customerInfo || "").replace(/\n/g, "<br/>")}</p>
-              <p class="oc-post">${postCode}</p>
-              ${sendOrderInstruction ? '<p class="oc-note"><span class="oc-note-lab">Note</span>' + sendOrderInstruction + '</p>' : ""}
+            <div style="flex: 1; font-size: 14px; text-align: left;">
+              <div style="background:#dbe8ff; padding:3px 16px; border-radius:28px; font-size: 18px; color:#004080; font-weight:bold;">
+                \u00A3 ${price ? price.toString().replace(/[^0-9.]/g, '') || '0.00' : '0.00'}
+              </div>
+              <div style="margin-top: 12px; line-height: 1.6; font-size: 15px;">
+                ${(customerInfo || "").replace(/\n/g, "<br/>")}<br/>
+                <b style="font-size: 18px;">${postCode}</b><br/>
+              </div>
+              <div style="margin-top: 12px; font-size: 15px; color: #ff0000;">
+                ${sendOrderInstruction ? `<b>Send Order Instruction:</b> ${sendOrderInstruction}` : ""}
+              </div>
             </div>
           </div>
-          <div class="oc-foot">
-            <div class="oc-foot-qty">&times; ${quantity}</div>
-            <div class="oc-foot-sku">${sku}</div>
+          <div style="padding-top: 20px; font-size: 44px; font-weight: bold;">
+            <div style="background: #d4edda; border-radius: 20px; display: inline-block; padding: 6px 400px; color: #004080;">
+              x ${quantity}
+            </div>
+            <div style="font-size: 22px; font-weight: normal; margin-top: 6px;">${sku}</div>
           </div>
         </div>`;
 
@@ -653,8 +608,6 @@ function readRowAndSpeak() {
         html: display,
         comboImages: comboImages,
         mainImageUrl: imageUrl,
-        rowImages: [imageUrl],
-        rowQtys: [quantity],
         pauseTime: pauseTime
       });
     }
@@ -680,259 +633,77 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
     <base target="_top">
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
-      /* One accent, everything else neutral. Spacing and type do the work. */
-      :root{
-        --bg:#F4F6F8; --card:#FFFFFF; --sunk:#EDF1F4;
-        --ink:#1B2733; --ink-2:#5C6B7A; --ink-3:#8595A4;
-        --line:#DFE5EB; --line-2:#C8D2DB;
-        --accent:#0F6E76; --accent-soft:#E4F0F1; --accent-ink:#0B5158;
-        --alert:#A6402F; --alert-soft:#FBECE9;
-        --ok:#1F7A4D; --ok-soft:#E8F3ED;
-        --r:6px;
-        --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-        --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-      }
-      *{box-sizing:border-box}
-      html,body{height:100%}
-      body{margin:0; padding:0; background:var(--bg); color:var(--ink); overflow:hidden;
-        font-family:var(--sans); font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;}
-      /* The packer must never scroll to find the count. The shell is exactly one
-         screen tall; the fixed bars keep their size and the order card takes
-         whatever height is left, with the picture scaling to fit it. */
-      /* max-width was the binding constraint: on a wide monitor the dialog was
-         full width but the content stopped at 1760px and sat between two grey
-         gutters. 2400 is past any station monitor, so the shell now simply fills
-         whatever width the dialog is given, and the side padding is trimmed. */
-      /* No side padding. Google's dialog already draws its own margin around the
-         iframe, so anything here is width the order card never gets. The panels
-         carry their own borders, so they still read as separate blocks. */
-      .shell{max-width:2400px; height:100%; margin:0 auto; padding:8px 0 10px;
-        display:flex; flex-direction:column; gap:9px;}
-
-      .topbar{display:flex; flex-wrap:wrap; align-items:center; gap:10px 26px; flex:none;
-        background:var(--card); border:1px solid var(--line); border-radius:var(--r);
-        padding:9px 16px;}
-      .pos{display:flex; align-items:baseline; gap:10px}
-      .pos-row{font-size:22px; font-weight:650; letter-spacing:-.01em}
-      .pos-item{font-family:var(--mono); font-size:13.5px; font-variant-numeric:tabular-nums;
-        color:var(--accent-ink); background:var(--accent-soft); padding:3px 9px; border-radius:99px; white-space:nowrap;}
-      .clocks{display:flex; gap:20px; margin-left:auto}
-      .clock{display:flex; flex-direction:column; gap:1px}
-      .clock-lab{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
-      .clock-val{font-family:var(--mono); font-size:15px; font-variant-numeric:tabular-nums; color:var(--ink-2)}
-
-      .audio{display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 18px;
-        padding-left:18px; border-left:1px solid var(--line);}
-      .field{display:flex; flex-direction:column; gap:4px; min-width:0}
-      .field label{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
-      .field select{font-family:var(--sans); font-size:15px; color:var(--ink); background:var(--card);
-        border:1px solid var(--line-2); border-radius:5px; padding:6px 10px; max-width:250px; cursor:pointer;}
-      .field select:hover{border-color:var(--ink-3)}
-      .field select:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
-      .seg{display:flex; border:1px solid var(--line-2); border-radius:5px; overflow:hidden}
-      .seg button{font-family:var(--sans); font-size:14px; color:var(--ink-2); background:var(--card);
-        border:0; border-right:1px solid var(--line); padding:7px 12px; cursor:pointer; margin:0;}
-      .seg button:last-child{border-right:0}
-      .seg button:hover{background:var(--sunk)}
-      .seg button[aria-pressed="true"]{background:var(--accent); color:#fff}
-
-      .controls{display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:none;
-        background:var(--card); border:1px solid var(--line); border-radius:var(--r);
-        padding:9px 16px;}
-      button{font-family:var(--sans); font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
-        border:1px solid var(--line-2); border-radius:5px; padding:10px 17px; cursor:pointer; margin:0;
-        display:inline-flex; align-items:center; gap:7px;}
-      .ico{font-size:16px; line-height:1}
-      button:hover{background:var(--sunk); border-color:var(--ink-3)}
-      button:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
-      button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
-      button.primary:hover{background:var(--accent-ink); border-color:var(--accent-ink)}
-      #pauseBtn.is-paused{background:var(--ok-soft); border-color:var(--ok); color:var(--ok); font-weight:600}
-      .spacer{margin-left:auto}
-
-      .mic-wrap{display:flex; align-items:center; gap:10px}
-      #micIndicator{display:inline-flex; align-items:center; gap:8px; padding:6px 13px; border-radius:99px;
-        font-size:14px; font-weight:500; border:1px solid var(--line-2); background:var(--card); color:var(--ink-2);}
-      #micIndicator .mic-dot{width:8px; height:8px; border-radius:50%; background:var(--ink-3); flex:none}
-      #micIndicator.mic-listening,#micIndicator.mic-hearing{border-color:var(--ok); color:var(--ok); background:var(--ok-soft)}
-      #micIndicator.mic-listening .mic-dot{background:var(--ok); animation:pulse 1.5s ease-in-out infinite}
-      #micIndicator.mic-hearing .mic-dot{background:var(--ok); animation:pulse .55s ease-in-out infinite}
-      #micIndicator.mic-processing,#micIndicator.mic-speaking{color:var(--ink-3)}
-      #micIndicator.mic-paused{border-color:var(--line-2); color:var(--ink-2); background:var(--sunk)}
-      #micIndicator.mic-error{border-color:var(--alert); color:var(--alert); background:var(--alert-soft)}
-      #micIndicator.mic-error .mic-dot{background:var(--alert)}
-      @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-      #micBtn.mic-off{background:var(--sunk)}
-
-      #spokenText{background:var(--card); border:1px solid var(--line); border-left:3px solid var(--accent);
-        border-radius:var(--r); padding:11px 16px; flex:none;
-        font-size:19px; font-weight:600; letter-spacing:-.005em;}
-      #voiceFeedback{display:none}
-
-      .combo-images{display:flex; gap:12px; overflow-x:auto; overflow-y:hidden; padding:11px; flex:none;
-        background:var(--card); border:1px solid var(--line); border-radius:var(--r);}
-      .combo-images:empty{display:none}
-      /* Each thumbnail carries its position, so "item 3 of 7" in the header and
-         the third picture in the strip are obviously the same thing. */
-      .thumb{position:relative; flex:none}
-      .thumb img{height:clamp(62px,9vh,128px); width:clamp(62px,9vh,128px); object-fit:contain;
-        display:block; background:var(--card);
-        border:2px solid var(--line-2); border-radius:8px; padding:7px; cursor:pointer;}
-      .thumb img:hover{border-color:var(--accent)}
-      .thumb.on img{border-color:var(--accent); border-width:4px; padding:6px}
-      .thumb-badge{position:absolute; top:-9px; left:-9px; min-width:32px; height:32px; padding:0 8px;
-        border-radius:99px; background:var(--ink); color:#fff; font-size:17px; font-weight:700;
-        display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;
-        border:3px solid var(--card);}
-      .thumb.on .thumb-badge{background:var(--accent)}
-
-      #display{flex:1; min-height:0; display:flex; overflow:auto}
-      /* Top padding is 2 spacing units (8px each) above the previous 16px, so the
-         TITLE label and the product picture no longer start hard against the
-         card's top edge. */
-      .ordercard{flex:1; min-height:0; display:flex; flex-direction:column;
-        background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:32px 16px 12px;}
-      /* stretch, not center: centering a fixed-height picture inside a tall row
-         left a dead band above it. The picture now grows into that space. */
-      .oc-grid{flex:1; min-height:0; display:grid; grid-template-columns:1fr auto 1fr;
-        gap:20px; align-items:stretch;}
-      @media(max-width:1100px){.oc-grid{grid-template-columns:1fr; gap:16px}}
-      .oc-lab{font-size:13px; letter-spacing:.09em; text-transform:uppercase;
-        color:var(--ink-3); font-weight:600; margin:0 0 5px}
-      .oc-title{font-size:19px; color:var(--ink); font-weight:500; margin:0 0 12px; line-height:1.35}
-      .oc-name{font-size:clamp(19px,2.6vh,26px); font-weight:650; letter-spacing:-.015em;
-        margin:0 0 10px; line-height:1.25}
-      .oc-chips{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:8px}
-      .chip{font-size:13.5px; font-weight:500; padding:5px 13px; border-radius:99px;
-        background:var(--sunk); color:var(--ink-2); border:1px solid var(--line);}
-      .chip-alert{background:var(--alert-soft); color:var(--alert); border-color:var(--alert)}
-      .oc-status{font-size:20px; font-weight:650; color:var(--alert); margin:14px 0 0}
-
-      .oc-media{display:flex; flex-direction:column; align-items:center;
-        justify-content:flex-start; min-height:0;}
-      /* The packer stands away from the screen, so the picture and its count are
-         the two things that must read at a distance. Both get a hard border and
-         a size well beyond normal UI scale. */
-      /* Sized by the picture, capped by the space.
-         flex:1 stretched the BORDER to full height, so a wide, short product
-         (a 500mm 4-outlet bar) sat in a tall box of white. flex:0 1 auto keeps
-         the picture's own shape and max-height stops it overflowing. */
-      .oc-media img{flex:0 1 auto; min-height:0; max-height:100%;
-        width:auto; max-width:min(760px,40vw); object-fit:contain;
-        background:var(--card); border:3px solid var(--ink); border-radius:8px;
-        padding:10px; cursor:zoom-in; display:block;}
-      .oc-media img:hover{border-color:var(--accent)}
-
-      /* Count badge: a solid block, not a number floating in space. */
-      .oc-qty{display:inline-flex; align-items:center; justify-content:center; gap:7px;
-        margin-top:12px; padding:clamp(6px,1.1vh,12px) clamp(20px,2.4vw,34px); border-radius:10px;
-        background:var(--accent); color:#fff; box-shadow:0 2px 6px rgba(15,110,118,.28);
-        font-variant-numeric:tabular-nums; line-height:1;}
-      .oc-qty-x{font-size:clamp(24px,3.4vh,40px); font-weight:400; opacity:.72}
-      #mainQty{font-size:clamp(38px,6.6vh,76px); font-weight:800; letter-spacing:-.04em}
-      .oc-qty-cap{font-size:13px; letter-spacing:.12em; text-transform:uppercase;
-        color:var(--ink-2); margin-top:6px; font-weight:600}
-
-      .oc-price{font-size:clamp(21px,2.8vh,27px); font-weight:650; letter-spacing:-.02em;
-        margin:0 0 10px; font-variant-numeric:tabular-nums}
-      .oc-cust{font-size:15px; color:var(--ink-2); margin:0 0 6px; line-height:1.5}
-      .oc-post{font-family:var(--mono); font-size:clamp(19px,2.6vh,24px); font-weight:600; letter-spacing:.02em; margin:0}
-      .oc-note{margin:10px 0 0; padding:10px 13px; font-size:15px; line-height:1.4;
-        background:var(--alert-soft); border-left:4px solid var(--alert); border-radius:4px;}
-      .oc-note-lab{display:block; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
-        color:var(--alert); margin-bottom:3px; font-weight:600;}
-      /* padding-top is the gap BETWEEN the separator line and the SKU row. At
-         10px the quantity box and the SKU string sat tight under the line; the
-         packer reads this row from a distance, so it needs air above it. */
-      .oc-foot{display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px 18px;
-        flex:none; margin-top:14px; padding-top:24px; border-top:1px solid var(--line);}
-      .oc-foot-qty{font-size:clamp(20px,2.8vh,30px); font-weight:700; letter-spacing:-.02em;
-        font-variant-numeric:tabular-nums; background:var(--sunk); border:2px solid var(--line-2);
-        border-radius:9px; padding:5px 20px;}
-      .oc-foot-sku{font-family:var(--mono); font-size:13.5px; color:var(--ink-3); word-break:break-all}
-
-      #zoomOverlay{display:none; position:fixed; inset:0; z-index:10000;
-        background:rgba(20,28,36,.86); padding:52px 26px 34px; align-items:center; justify-content:center;}
-      #zoomOverlay.open{display:flex}
-      #zoomBox{position:relative; max-width:min(1100px,94vw); max-height:88vh}
-      #zoomOverlay img{max-width:100%; max-height:82vh; object-fit:contain; display:block;
-        background:#fff; border-radius:var(--r); padding:12px;}
-      #zoomClose{position:absolute; top:-42px; right:0; background:#fff; color:var(--ink);
-        border:0; border-radius:5px; padding:8px 16px; font-size:13.5px; font-weight:600; cursor:pointer;}
-      #zoomClose:hover{background:var(--sunk)}
-      #zoomHint{position:absolute; bottom:-28px; left:0; right:0; text-align:center;
-        color:rgba(255,255,255,.72); font-size:12px;}
-
-      #heldRows{flex:none}
-      #heldRows:empty{display:none}
-      .held-row{padding:9px 13px; margin:4px 0; background:var(--card); border:1px solid var(--line);
-        border-radius:5px; font-size:14px; color:var(--ink-2)}
-
-      @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+      body { font-family: sans-serif; background: #f9f9f9; padding: 16px; }
+      #spokenText { padding: 12px; background: #eef6ff; border: 1px solid #aaccee; border-radius: 8px; font-size: 15px; font-weight: bold; margin-bottom: 16px; color: #003366; }
+      button { margin: 4px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+      label { font-weight: bold; margin-right: 8px; }
+      .settings { text-align: center; margin-bottom: 16px; display: flex; justify-content: center; gap: 20px; align-items: center; }
+      .combo-images { display: block; overflow-x: auto; white-space: nowrap; max-width: 100%; margin-bottom: 20px; }
+      .combo-images img { display: inline-block; margin-right: 12px; height: 90px; width: 90px; object-fit: contain; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,128,0,0.4); cursor: pointer; transition: transform 0.3s ease; }
+      .combo-images img:hover { transform: scale(1.2); }
+      #zoomOverlay { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); z-index: 10000; background: rgba(0,0,0,0.75); border-radius: 18px; padding: 16px; box-shadow: 0 0 22px black; max-width: 70%; max-height: 70%; cursor: pointer; }
+      #zoomOverlay img { max-width: 100%; max-height: 100%; border-radius: 18px; display: block; margin: auto; }
+      #voiceFeedback { margin-top: 10px; font-size: 12px; color: #555; }
+      /* --- microphone / listening indicator --- */
+      #micIndicator { display: inline-flex; align-items: center; gap: 8px; margin: 8px auto 0; padding: 6px 14px;
+                      border-radius: 20px; font-size: 14px; font-weight: bold; border: 2px solid transparent; }
+      #micIndicator .mic-dot { width: 12px; height: 12px; border-radius: 50%; background: #999; flex: none; }
+      #micIndicator.mic-listening { background: #e6f7ec; color: #10633b; border-color: #34a853; }
+      #micIndicator.mic-listening .mic-dot { background: #34a853; animation: micPulse 1.4s ease-in-out infinite; }
+      #micIndicator.mic-hearing   { background: #d5f2e1; color: #0b4f2e; border-color: #0f9d58; }
+      #micIndicator.mic-hearing .mic-dot { background: #0f9d58; animation: micPulse .5s ease-in-out infinite; }
+      #micIndicator.mic-processing{ background: #e0f7fa; color: #004080; border-color: #4dd0e1; }
+      #micIndicator.mic-speaking  { background: #eef1f5; color: #5b6470; border-color: #b9c2cc; }
+      #micIndicator.mic-paused    { background: #fff3cd; color: #7a5b00; border-color: #e0a800; }
+      #micIndicator.mic-paused .mic-dot { background: #e0a800; }
+      #micIndicator.mic-error     { background: #fdecea; color: #8a1c12; border-color: #d93025; }
+      #micIndicator.mic-error .mic-dot { background: #d93025; }
+      @keyframes micPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.55); opacity: .45; } }
+      @media (prefers-reduced-motion: reduce) { #micIndicator .mic-dot { animation: none !important; } }
+      #micBtn.mic-off { background: #fff3cd; border: 1px solid #e0a800; }
+      #pauseBtn.is-paused { background: #d4edda; border: 2px solid #34a853; font-weight: bold; color: #10633b; }
+      #rowCounter, #rowTimeTracker, #totalTimeTracker { font-size: 14px; font-weight: bold; color: #004080; }
+      #loadingIndicator { display: none; font-size: 16px; font-weight: bold; color: #004080; background: #e0f7fa; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px; }
+      #loadingIndicator.back { background: #ffe0e0; }
+      #heldRows { margin-top: 20px; padding: 10px; background: #fff; border: 1px solid #ccc; border-radius: 8px; }
+      .held-row { padding: 8px; margin: 4px 0; background: #fff3cd; border-radius: 4px; font-size: 14px; }
     </style>
   </head>
   <body>
-    <div class="shell">
-
-      <div class="topbar">
-        <div class="pos">
-          <span class="pos-row" id="rowCounter">Row 1</span>
-          <span class="pos-item" id="itemCounter">Item 1 of 1</span>
-        </div>
-
-        <div class="clocks">
-          <div class="clock"><span class="clock-lab">This order</span><span class="clock-val" id="rowTimeTracker">00:00:00</span></div>
-          <div class="clock"><span class="clock-lab">Total</span><span class="clock-val" id="totalTimeTracker">00:00:00</span></div>
-        </div>
-
-        <div class="audio">
-          <div class="field">
-            <label for="langSelect">Language</label>
-            <select id="langSelect"></select>
-          </div>
-          <div class="field">
-            <label for="voiceSelect">Voice</label>
-            <select id="voiceSelect"></select>
-          </div>
-          <div class="field">
-            <label>Speed</label>
-            <div class="seg" id="rateSeg">
-              <button type="button" data-rate="0.6">Slow</button>
-              <button type="button" data-rate="0.7" aria-pressed="true">Normal</button>
-              <button type="button" data-rate="1.2">Fast</button>
-              <button type="button" data-rate="1.5">Faster</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="controls">
-        <button type="button" onclick="controlSpeech('restart')"><span class="ico">&#128257;</span>Restart</button>
-        <button type="button" onclick="controlSpeech('back')"><span class="ico">&#9198;</span>Back</button>
-        <button type="button" onclick="controlSpeech('postcode')"><span class="ico">&#128205;</span>Postcode</button>
-        <button type="button" onclick="togglePause()" id="pauseBtn"><span class="ico">&#9208;</span>Pause</button>
-        <button type="button" onclick="controlSpeech('respeak')"><span class="ico">&#128260;</span>Repeat</button>
-        <button type="button" class="primary" onclick="controlSpeech('next')"><span class="ico">&#9197;</span>Next</button>
-        <div class="spacer"></div>
-        <div class="mic-wrap">
-          <button type="button" onclick="toggleMic()" id="micBtn" title="Pause or resume voice commands"><span class="ico">&#127908;</span>Mic</button>
-          <div id="micIndicator" class="mic-processing"><span class="mic-dot"></span><span id="micText">Starting</span></div>
-        </div>
-      </div>
-
-      <div id="spokenText"></div>
-      <div id="voiceFeedback"></div>
-      <div class="combo-images" id="comboImagesContainer"></div>
-      <div id="display"></div>
-      <div id="heldRows"></div>
+    <div class="settings">
+      <div id="rowCounter">Row: 1 of ${speakTexts.length}</div>
+      <div id="rowTimeTracker">Row Time: 00:00:00</div>
+      <div id="totalTimeTracker">Total Time: 00:00:00</div>
+      <label>Voice: <select id="voiceSelect"></select></label>
+      <label>Speed: 
+        <select id="rateSelect">
+          <option value="0.6">Slow</option>
+          <option value="0.7" selected>Normal</option>
+          <option value="1.2">Fast</option>
+          <option value="1.5">Very Fast</option>
+        </select>
+      </label>
     </div>
-
-    <div id="zoomOverlay">
-      <div id="zoomBox">
-        <button type="button" id="zoomClose" onclick="hideZoom()">&times; Close</button>
-        <img id="zoomImg" src="" alt="Product image, enlarged"/>
-        <div id="zoomHint">Click the background or press Esc to close</div>
-      </div>
+    <div id="loadingIndicator">Processing command... <span class="spinner">⏳</span></div>
+    <div style="text-align:center; margin-bottom: 20px;">
+      <button onclick="controlSpeech('back')">⏮️Back</button>
+      <button onclick="controlSpeech('restart')">🔁Restart</button>
+      <button onclick="controlSpeech('respeak')">🔄Respeak</button>
+      <button onclick="controlSpeech('postcode')">📍Postcode</button>
+      <button onclick="togglePause()" id="pauseBtn">⏸️ Pause</button>
+      <button onclick="controlSpeech('next')">⏭️Next</button>
+    </div>
+    <div style="text-align:center; margin-bottom: 12px;">
+      <button onclick="toggleMic()" id="micBtn" title="Pause or resume voice commands">🎙️ Mic On</button>
+      <div id="micIndicator" class="mic-processing"><span class="mic-dot"></span><span id="micText">Starting…</span></div>
+    </div>
+    <div id="spokenText"></div>
+    <div id="voiceFeedback"></div>
+    <div class="combo-images" id="comboImagesContainer"></div>
+    <div id="display" style="margin-top: 20px;"></div>
+    <div id="heldRows"></div>
+    <div id="zoomOverlay" onclick="hideZoom()">
+      <img id="zoomImg" src="" alt="Zoomed Image"/>
     </div>
     <script>
       const speakTexts = ${speakTextsStr};
@@ -963,14 +734,21 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       var rowCounterDiv = document.getElementById("rowCounter");
       var rowTimeTrackerDiv = document.getElementById("rowTimeTracker");
       var totalTimeTrackerDiv = document.getElementById("totalTimeTracker");
+      var loadingIndicator = document.getElementById("loadingIndicator");
       var heldRowsDiv = document.getElementById("heldRows");
-      var itemCounterSpan = document.getElementById("itemCounter");
 
-      // The "Processing command..." banner was removed: it announced the tool's
-      // own internals to a packer who only needs to know what to pick. These are
-      // kept as no-ops so every existing call site stays valid.
-      function showLoading(action) {}
-      function hideLoading() { voiceFeedbackDiv.innerText = ""; }
+      function showLoading(action) {
+        loadingIndicator.classList.remove("back");
+        if (action === "back") loadingIndicator.classList.add("back");
+        loadingIndicator.style.display = "block";
+        voiceFeedbackDiv.innerText = "Processing " + action + " command...";
+      }
+
+      function hideLoading() {
+        loadingIndicator.style.display = "none";
+        loadingIndicator.classList.remove("back");
+        voiceFeedbackDiv.innerText = "";
+      }
 
       function formatTime(seconds) {
         const hrs = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -1001,39 +779,18 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         updateTotalTimeTracker();
       }
 
-      // The strip mirrors the spoken order, so thumbnail n is component n. The
-      // number badge makes that explicit and the current one is outlined, which
-      // is what tells the packer how far through a long combo they are.
       function updateComboImages() {
         comboImagesContainer.innerHTML = "";
         var imgs = (displays[index].comboImages || []).slice(0, 50);
-        imgs.forEach(function (url, i) {
-          var cell = document.createElement("div");
-          cell.className = "thumb";
-
+        console.log("Combo images for index " + index + ": ", imgs);
+        imgs.forEach(function(url) {
           var img = document.createElement("img");
           img.src = url;
-          img.alt = "Component " + (i + 1);
-          img.onerror = function () { console.error("Failed to load image: " + url); };
-          img.onclick = function () { showZoom(url); };
-
-          var badge = document.createElement("span");
-          badge.className = "thumb-badge";
-          badge.innerText = String(i + 1);
-
-          cell.appendChild(img);
-          cell.appendChild(badge);
-          comboImagesContainer.appendChild(cell);
+          img.alt = "Combo Image";
+          img.onerror = function() { console.error("Failed to load image: " + url); };
+          img.onclick = function() { showZoom(url); };
+          comboImagesContainer.appendChild(img);
         });
-        highlightThumb();
-      }
-
-      function highlightThumb() {
-        var cells = comboImagesContainer.querySelectorAll(".thumb");
-        for (var i = 0; i < cells.length; i++) {
-          if (i === segIndex) cells[i].classList.add("on");
-          else cells[i].classList.remove("on");
-        }
       }
 
       // The speakable parts of the current order, blanks dropped, in order:
@@ -1065,21 +822,8 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       function updateSegmentUI() {
         var segs = currentSegments();
         spokenTextDiv.innerText = segs[segIndex] || "";
-        rowCounterDiv.innerText = "Row " + (index + 1) + " of " + speakTexts.length;
-        if (itemCounterSpan) {
-          itemCounterSpan.innerText = "Item " + (segIndex + 1) + " of " + Math.max(1, segs.length);
-        }
-        highlightThumb();
-        // The count for the component being spoken right now, shown under its
-        // picture. A combo has a different quantity per component, so the order
-        // total underneath is not the number the packer should act on.
-        var qtyEl = document.getElementById("mainQty");
-        if (qtyEl) {
-          var qs = displays[index].rowQtys || [];
-          var q  = qs[segIndex];
-          qtyEl.innerText = (q === undefined || q === null || String(q).trim() === "")
-            ? "\u2014" : String(q).trim();
-        }
+        rowCounterDiv.innerText = "Row: " + (index + 1) + " of " + speakTexts.length +
+          (segs.length > 1 ? "   ·   Item: " + (segIndex + 1) + " of " + segs.length : "");
       }
 
       function changeIndex(direction) {
@@ -1222,183 +966,90 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       // Microphone interaction: while speech is paused the tool produces no audio,
       // so it cannot hear itself - the mic is released so the packer can still say
       // "next". It is muted again the moment speech resumes.
-      function setPauseButton(isPaused) {
-        var btn = document.getElementById("pauseBtn");
-        if (!btn) return;
-        btn.innerHTML = isPaused
-          ? '<span class="ico">\u25B6\uFE0F</span>Resume'
-          : '<span class="ico">\u23F8\uFE0F</span>Pause';
-        btn.className = isPaused ? "is-paused" : "";
-      }
-
       function togglePause() {
-        // RESUME IS NOT RELIABLE IN CHROME.
-        //
-        // synth.pause() always works, but synth.resume() frequently does nothing:
-        // the engine reports paused === false yet no audio follows, and the
-        // utterance is effectively dead. Trusting resume() left the packer with a
-        // button that said Pause and a tool that stayed silent.
-        //
-        // So resume is now verified. We call resume(), then check a moment later
-        // whether audio actually restarted; if it did not, we simply re-speak the
-        // current component from its start. Hearing one item again is a fine
-        // outcome - silence is not.
-        if (paused) {
-          paused = false;
-          setPauseButton(false);
-          micSuspendForSpeech();
-          try { synth.resume(); } catch (e) { console.warn("resume():", e && e.message); }
+        var btn = document.getElementById("pauseBtn");
 
-          var resumedSeg = segIndex;
-          setTimeout(function () {
-            if (paused) return;                       // paused again in the meantime
-            if (synth.speaking && !synth.paused) {
-              voiceFeedbackDiv.innerText = "";
-              return;                                 // resume worked
-            }
-            segIndex = resumedSeg;
-            speakCurrentSegment(function () {});      // it did not - say it again
-          }, 260);
-
-        } else if (synth.speaking) {
+        if (synth.speaking && !synth.paused) {
           synth.pause();
           paused = true;
-          setPauseButton(true);
-          voiceFeedbackDiv.innerText = "Paused. Press Resume to continue.";
-          micResumeAfterSpeech();                     // silent, so the mic can listen
+          if (btn) { btn.innerText = "▶️ Resume"; btn.className = "is-paused"; }
+          voiceFeedbackDiv.innerText = "Speech paused - press Resume to continue.";
+          micResumeAfterSpeech();
+
+        } else if (synth.paused) {
+          micSuspendForSpeech();        // mute before audio starts again
+          synth.resume();
+          paused = false;
+          if (btn) { btn.innerText = "⏸️ Pause"; btn.className = ""; }
+          voiceFeedbackDiv.innerText = "Speech resumed.";
 
         } else {
-          setPauseButton(false);
-          speakCurrentSegment(function () {});         // nothing playing - just say it
+          paused = false;
+          if (btn) { btn.innerText = "⏸️ Pause"; btn.className = ""; }
+          voiceFeedbackDiv.innerText = "Nothing is playing - press Respeak to hear this order.";
         }
       }
 
       function showZoom(src) {
         zoomImg.src = src;
-        zoomOverlay.classList.add("open");
-        var cb = document.getElementById("zoomClose");
-        if (cb) cb.focus();
+        zoomOverlay.style.display = "block";
       }
 
       function hideZoom() {
-        zoomOverlay.classList.remove("open");
+        zoomOverlay.style.display = "none";
         zoomImg.src = "";
       }
-      window.hideZoom = hideZoom;
-
-      // Three ways out of the enlarged image: the Close button, the backdrop, or
-      // Escape. Clicking the picture itself must NOT close it - that is where the
-      // packer looks, and closing under the cursor was the reported problem.
-      zoomOverlay.addEventListener("click", function (e) {
-        if (e.target === zoomOverlay) hideZoom();
-      });
 
       window.zoomImageClicked = function() {
         var mainImgUrl = displays[index].mainImageUrl;
         if (mainImgUrl) showZoom(mainImgUrl);
       };
 
-      // Voices are grouped by LANGUAGE first. Chrome exposes 20-70 voices in one
-      // flat list, most of them for languages this warehouse never uses, so
-      // picking "Google US English" meant scrolling past dozens of irrelevant
-      // entries. Choose the language, then the voice within it.
-      var voicesByLang = {};
-
-      function langLabel(code) {
-        var base = (code || "").split("-")[0].toLowerCase();
-        var names = {
-          en:"English", ta:"Tamil", si:"Sinhala", hi:"Hindi", de:"German", fr:"French",
-          es:"Spanish", it:"Italian", nl:"Dutch", pl:"Polish", pt:"Portuguese",
-          ru:"Russian", tr:"Turkish", ar:"Arabic", zh:"Chinese", ja:"Japanese", ko:"Korean"
-        };
-        return names[base] || base.toUpperCase();
-      }
-
-      function voiceLabel(v) {
-        // "Google UK English Female (en-GB)" -> "UK English Female"
-        var n = v.name.replace(/^(Google|Microsoft)\s+/i, "").trim();
-        return n + (v.localService ? "  (offline)" : "");
-      }
-
       function populateVoiceList() {
         voices = synth.getVoices();
-        var langSel  = document.getElementById("langSelect");
-        var voiceSel = document.getElementById("voiceSelect");
-        if (!langSel || !voiceSel) return;
-
-        if (!voices.length) {
-          voiceFeedbackDiv.innerText = "Waiting for voices to load.";
-          return;
+        console.log("Available voices:", voices);
+        var voiceSelect = document.getElementById("voiceSelect");
+        voiceSelect.innerHTML = "";
+        voices.forEach(function(voice, i) {
+          var option = document.createElement("option");
+          option.textContent = voice.name + " (" + voice.lang + ")";
+          option.value = i;
+          voiceSelect.appendChild(option);
+        });
+        var defaultIndex = voices.findIndex(function(v) { return v.name === "Google US English" && v.lang === "en-US"; });
+        if (defaultIndex !== -1) {
+          voiceSelect.selectedIndex = defaultIndex;
+          selectedVoice = voices[defaultIndex];
+        } else if (voiceSelect.options.length > 0) {
+          voiceSelect.selectedIndex = 0;
+          selectedVoice = voices[0];
+        } else {
+          console.warn("No voices available");
+          voiceFeedbackDiv.innerText = "No voices available. Speech may not work.";
         }
-
-        voicesByLang = {};
-        voices.forEach(function (v) {
-          var key = langLabel(v.lang);
-          (voicesByLang[key] = voicesByLang[key] || []).push(v);
-        });
-
-        var langs = Object.keys(voicesByLang).sort(function (a, b) {
-          if (a === "English") return -1;            // the packing floor language first
-          if (b === "English") return 1;
-          return a.localeCompare(b);
-        });
-
-        langSel.innerHTML = "";
-        langs.forEach(function (l) {
-          var o = document.createElement("option");
-          o.value = l;
-          o.textContent = l + " (" + voicesByLang[l].length + ")";
-          langSel.appendChild(o);
-        });
-
-        // Keep the previous default: Google US English when it exists.
-        var preferred = voices.find(function (v) {
-          return v.name === "Google US English" && v.lang === "en-US";
-        }) || voices[0];
-        langSel.value = langLabel(preferred.lang);
-        fillVoicesFor(langSel.value, preferred);
-
-        langSel.onchange = function () { fillVoicesFor(langSel.value, null); };
-        voiceSel.onchange = function () {
-          selectedVoice = voicesByLang[langSel.value][voiceSel.value];
-          if (speakTexts[index]) speakCurrentSegment(function () {});
+        voiceSelect.onchange = function() {
+          selectedVoice = voices[voiceSelect.value];
+          console.log("Voice changed to:", selectedVoice.name);
+          if (speakTexts[index]) {
+            // Re-read the component the packer is on, in the new voice — not the
+            // whole order, which would jump them back to component 1.
+            speakCurrentSegment(function() {});
+          }
         };
-      }
-
-      function fillVoicesFor(lang, preferred) {
-        var voiceSel = document.getElementById("voiceSelect");
-        var list = voicesByLang[lang] || [];
-        voiceSel.innerHTML = "";
-        list.forEach(function (v, i) {
-          var o = document.createElement("option");
-          o.value = i;
-          o.textContent = voiceLabel(v);
-          voiceSel.appendChild(o);
-        });
-        var at = preferred ? list.indexOf(preferred) : 0;
-        voiceSel.selectedIndex = at < 0 ? 0 : at;
-        selectedVoice = list[voiceSel.selectedIndex] || null;
       }
 
       var speechRate = 0.7;
       var speechToken = 0;   // generation counter for speakLine() chains
-      (function () {
-        var seg = document.getElementById("rateSeg");
-        if (!seg) return;
-        seg.addEventListener("click", function (e) {
-          var b = e.target.closest("button[data-rate]");
-          if (!b) return;
-          speechRate = parseFloat(b.getAttribute("data-rate"));
-          Array.prototype.forEach.call(seg.querySelectorAll("button"), function (x) {
-            x.setAttribute("aria-pressed", x === b ? "true" : "false");
-          });
-        });
-      })();
+      document.getElementById("rateSelect").onchange = function() {
+        speechRate = parseFloat(this.value);
+        console.log("Speech rate changed to:", speechRate);
+      };
 
       function speakLine(segments, onEnd) {
         synth.cancel();
         paused = false;
-        setPauseButton(false);
+        var pb = document.getElementById("pauseBtn");
+        if (pb) { pb.innerText = "⏸️ Pause"; pb.className = ""; }
 
         if (!segments || segments.length === 0 || segments.every(segment => !segment || segment.trim() === "")) {
           voiceFeedbackDiv.innerText = "No valid speech content.";
@@ -1517,13 +1168,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       }
 
       document.addEventListener('keydown', function(event) {
-        // Escape closes the enlarged image and goes no further, so it never
-        // doubles as a navigation key while the overlay is open.
-        if (event.key === "Escape") {
-          if (zoomOverlay.classList.contains("open")) { hideZoom(); event.preventDefault(); }
-          return;
-        }
-        if (zoomOverlay.classList.contains("open")) return;
+        console.log("Key pressed:", event.key);
         switch (event.key) {
           case 'ArrowRight':
             controlSpeech('next');
@@ -1581,7 +1226,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         else if (micRunning)        { setMicState("listening", "Listening"); }
         else                        { setMicState("processing", "Starting…"); }
         if (btn) {
-          btn.innerHTML = '<span class="ico">\uD83C\uDFA4</span>' + (micPausedByUser ? "Mic off" : "Mic on");
+          btn.innerText = micPausedByUser ? "🎙️ Mic Off" : "🎙️ Mic On";
           btn.className = micPausedByUser ? "mic-off" : "";
         }
       }
@@ -1734,7 +1379,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
             lastCommand = action;
             lastCommandTime = now;
 
-            setMicState("processing", "Heard \u201c" + action + "\u201d");
+            setMicState("processing", "Processing " + action + "…");
             showLoading(action);
             controlSpeech(action);      // the SAME handler the buttons use
           }
@@ -1781,34 +1426,27 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         updateUI();
         startRowTimer();
         
-        // Voice list loading.
-        //
-        // The previous version only ever called initialize() FROM the
-        // onvoiceschanged event, because onvoiceschanged !== undefined is always
-        // true in Chrome. When the voices happen to be loaded already the event
-        // never fires, so the Language and Voice menus stayed empty for the whole
-        // session and the first order was never spoken.
-        //
-        // Now: try immediately, listen for the event as well, and poll briefly -
-        // getVoices() famously returns [] on the first call in Chrome.
-        var spokeFirst = false;
         function initialize() {
           populateVoiceList();
           updateUI();
-          if (!spokeFirst) {
-            spokeFirst = true;
-            setTimeout(function () { speakCurrentSegment(function () {}); }, 100);
+          if (voices.length > 0) {
+            console.log("Initial speak for index:", index);
+            setTimeout(function() {
+              speakCurrentSegment(function() {});
+            }, 100);
+          } else {
+            console.warn("Voices not loaded yet");
+            voiceFeedbackDiv.innerText = "Waiting for voices to load...";
           }
         }
         if (speechSynthesis.onvoiceschanged !== undefined) {
-          speechSynthesis.onvoiceschanged = function () { populateVoiceList(); };
+          speechSynthesis.onvoiceschanged = function() {
+            console.log("Voices changed event fired");
+            initialize();
+          };
+        } else {
+          initialize();
         }
-        initialize();
-        var voiceTries = 0;
-        var voicePoll = setInterval(function () {
-          if ((voices && voices.length) || ++voiceTries > 20) { clearInterval(voicePoll); return; }
-          populateVoiceList();
-        }, 150);
       };
 
       window.resume = function() { controlSpeech("respeak"); };
@@ -1820,13 +1458,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
   </body>
   </html>`;
 
-  // 1900 is the safe ceiling, established by testing. Google does NOT reliably
-  // clamp a modal to the window width: at 2400 the dialog was rendered wider
-  // than the browser window and the LEFT edge was cut off - the title, the row
-  // counter and the Back button all disappeared off-screen. 1900 renders whole.
-  //
-  // On a station whose browser window is narrower than this, the window is the
-  // real limit and no number here will widen the tool; the window must be
-  // maximised instead.
-  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(1900).setHeight(1400), "Speak Products");
+  // 1600 is the practical ceiling: Google caps a modal dialog at the browser
+  // window width, so anything larger is silently clipped rather than honoured.
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(1600).setHeight(1300), "Speak Products");
 }

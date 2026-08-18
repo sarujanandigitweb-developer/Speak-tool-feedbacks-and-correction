@@ -160,40 +160,6 @@ var PP_SOT_CACHE = null;   // { SKU: {colour, family, size, img} }
  * so a network or permission failure degrades to the suffix table rather than
  * breaking the run.
  */
-/**
- * Column index for the first header matching any of `names`. Exact match wins
- * over a substring match, so "Width_mm" is preferred to "Overall Width".
- * Returns -1 when the sheet carries none of them.
- */
-function ppFindHeader(hdr, names) {
-  var i, h;
-  for (var a = 0; a < names.length; a++) {
-    for (i = 0; i < hdr.length; i++) {
-      h = String(hdr[i] || '').trim().toLowerCase().replace(/[\s()]+/g, '_');
-      if (h === names[a]) return i;
-    }
-  }
-  for (var b = 0; b < names.length; b++) {
-    for (i = 0; i < hdr.length; i++) {
-      h = String(hdr[i] || '').trim().toLowerCase();
-      if (h.indexOf(names[b].replace('_mm', '')) !== -1) return i;
-    }
-  }
-  return -1;
-}
-
-/**
- * A measurement cell as a plain number string. The SOT writes "-", "N/A" and
- * blanks for a dimension that does not apply, and those must not reach the
- * packer as a size.
- */
-function ppSotNum(v) {
-  var t = String(v == null ? '' : v).trim();
-  if (!t || t === '-' || t.toUpperCase() === 'N/A') return '';
-  var m = t.match(/[0-9]+(?:\.[0-9]+)?/);
-  return m ? m[0] : '';
-}
-
 function ppLoadSot() {
   if (PP_SOT_CACHE) return PP_SOT_CACHE;
   var map = {};
@@ -211,15 +177,9 @@ function ppLoadSot() {
           iOut = hdr.indexOf('Outer_Colour'),
           iDia = hdr.indexOf('Diameter_mm'),
           iImg = hdr.indexOf('IMG_LINK');
-      // Height and Width are looked up by pattern rather than by an exact name.
-      // The SOT keeps them SEPARATE from Diameter_mm, and the exact header
-      // spelling is the sheet owner's to change; a missing column just leaves
-      // the value blank instead of breaking the load.
-      var iHt = ppFindHeader(hdr, ['height_mm', 'height']),
-          iWd = ppFindHeader(hdr, ['width_mm', 'width']);
       // Read only as far as the last column we need — the sheet is ~180 wide and
       // pulling all of it would move six times the cells for nothing.
-      var width = Math.max(iSku, iFam, iOut, iDia, iImg, iHt, iWd) + 1;
+      var width = Math.max(iSku, iFam, iOut, iDia, iImg) + 1;
       var n = sh.getLastRow() - 2;                       // data starts at row 3
       if (n > 0 && width > 0) {
         var vals = sh.getRange(3, 1, n, width).getValues();
@@ -235,9 +195,7 @@ function ppLoadSot() {
           map[sku] = {
             colour: PP_SOT_OVERRIDE[sku] || out || fam,
             family: fam,
-            size:   ppSotNum(iDia >= 0 ? vals[r][iDia] : ''),
-            height: ppSotNum(iHt  >= 0 ? vals[r][iHt]  : ''),
-            width:  ppSotNum(iWd  >= 0 ? vals[r][iWd]  : ''),
+            size:   iDia >= 0 ? String(vals[r][iDia] || '').trim() : '',
             img:    iImg >= 0 ? String(vals[r][iImg] || '').trim() : ''
           };
         }
@@ -430,168 +388,83 @@ function ppSortCleanedSheetRows(sheet) {
 }
 
 // ===========================================================================
-// LAMPSHADE COLLECTION
+// LAMPSHADE COLLECTION — size first, then colour and quantity
 // ===========================================================================
-// Rule supplied by the business 2026-08-18. This REPLACES the earlier rule,
-// which treated EVERY LS-prefixed product as collectible and scanned the whole
-// pack list for all of them.
+// Allocation rule supplied by the business 2026-08-14:
 //
-// A lampshade is collected only when its SKU starts with one of the prefixes
-// below. There are two lists and they scan differently:
+//   1. Identify the FIRST lampshade size that appears in the orders.
+//   2. Collect up to 15 lampshades of that same size.
+//   3. Within a size, collect only the colours and quantities the orders require.
+//   4. Do not mix sizes in one batch if 15 of the current size are available.
+//   5. If fewer than 15 are required for that size, collect only what is required
+//      (never round up to 15, never take stock the orders do not need).
+//   6. If that size cannot fill 15, move to the next size and keep filling.
+//   7. Keep colour and quantity separate within each size.
 //
-//   LIST 1 - "order run"        Collect across the run of CONSECUTIVE orders
-//                               that need the SAME SKU family, stopping at the
-//                               first order that does not need it. Max 15.
-//                               Worked example given by the business: orders 3
-//                               and 4 carry that family and order 5 does not,
-//                               so orders 3 and 4 are collected and the run ends.
+// Rules 5 and 6 both apply when a size totals under 15. They are consistent when
+// read as: R5 caps how much of a size you take (the requirement), R6 says keep
+// filling the batch from the next size. Implemented that way.
 //
-//   LIST 2 - "whole pack list"  Scan the entire remaining pack list, exactly as
-//                               the previous logic did. Max 15.
-//
-// Anything NOT in either list is not collected at all - it is packed straight
-// from the order like a bulb or a ceiling rose. That is deliberate and was
-// confirmed 2026-08-18: LSCP150GR2PK and WCFSDCBM both appear in the live
-// orders, and families such as LSCA, LSCO, LSCP, LSFC and LSHQ exist in the
-// SOT, and none of them are collected under this rule.
-//
-// The 15 limit is PER LIST, not shared. An order needing a list-1 shade AND a
-// list-2 shade triggers TWO collections, each up to 15, shown as two cards.
-//
-// NOTE - WCB, WCCY and WCD are cage shades and are collected here, but
-// ppProductType() still ranks them OTHER for the packing sort because that
-// classification was not part of this change. Flagged, not altered.
+// Rule 4 needs no special case — it falls out of filling in size order. If the
+// first size can supply 15, it fills the batch on its own and no mixing occurs.
 // ===========================================================================
 
 var PP_MAX_LAMPSHADE_COLLECTION = 15;
 
-// LIST 1 - collect across the run of consecutive orders needing the same family.
-var PP_COLLECT_RUN_PREFIXES = [
-  'LSBS', 'LSSS', 'LSWE', 'WCCY', 'LSCYRO', 'LSBG', 'LSCG',
-  'LSFG', 'LSGD', 'LSGG', 'LSGL', 'WCB', 'WCD'
-];
-
-// LIST 2 - check the entire pack list.
-var PP_COLLECT_FULL_PREFIXES = [
-  'LSCY2', 'LSDM', 'LSDO', 'LSEL', 'LSFT', 'LSHH', 'LSHM', 'LSLC', 'LSLT',
-  'LSMS', 'LSOL', 'LSRP', 'LSTF', 'LSTL', 'LSTM', 'LSUL', 'LSWD'
-];
-
-/**
- * Which collection family a SKU belongs to, or null when it is not collected.
- *
- * LONGEST prefix wins. That matters because the lists are not disjoint by
- * length: LSCYRO (list 1) and LSCY2 (list 2) both begin "LSCY", and LSGL
- * (list 1) shadows nothing but sits beside LSGD and LSGG. Matching the longest
- * prefix means LSCYRO120GD is list 1 while LSCY290BM is list 2, which is what
- * the two lists say.
- *
- * "LSCY2" is a real prefix, not a typo for a size: the SOT holds LSCY210* and
- * LSCY290* but also LSCY1C12FG, and only the 2xx sizes are named in list 2.
- *
- * @return {?{prefix:string, mode:string}} mode is 'RUN' (list 1) or 'FULL' (list 2)
- */
-function ppCollectionFamily(sku) {
-  var s = String(sku || '').toUpperCase().trim();
-  if (!s) return null;
-  var best = null;
-
-  function scan(list, mode) {
-    for (var i = 0; i < list.length; i++) {
-      var p = list[i];
-      if (s.indexOf(p) !== 0) continue;
-      if (!best || p.length > best.prefix.length) best = { prefix: p, mode: mode };
-    }
-  }
-  scan(PP_COLLECT_RUN_PREFIXES, 'RUN');
-  scan(PP_COLLECT_FULL_PREFIXES, 'FULL');
-  return best;
-}
+// true  -> a line that straddles the 15 boundary is split (batch fills to exactly 15)
+// false -> the whole line moves to the next batch (batch may close below 15)
+//
+// SET TO false — decided 2026-08-14 from a run against the live Unit 3 orders
+// (30 lampshade lines, 51 units, 30 orders):
+//
+//   mode     batches  split lines  split orders  batch sizes
+//   true        4          1            1        [15, 15, 15, 6]
+//   false       4          0            0        [15, 15, 12, 9]
+//
+// Both need the SAME number of trips. Splitting buys nothing: it does not reduce
+// the trip count, it only makes one order arrive across two trips, so that order
+// cannot be packed until the second trip returns. A batch closing at 12 instead
+// of 15 costs nothing operationally.
+var PP_ALLOW_LINE_SPLIT = false;
 
 /**
- * Size token from a SKU - the first digit run after the leading letters.
+ * Size token from a SKU — the first digit run after the leading letters.
  *   LSFT220BB   -> "220"     LSDO400YE   -> "400"
  *   LSCYRO120GD -> "120"     LSTF40BM    -> "40"
  *
- * Used for the wording on the collection card, not for deciding what to collect.
+ * Grouping is by this token alone, so a 210 Dome and a 210 Curvy count as the
+ * same size — matching the wording "15 lampshades of that same size". If shape
+ * family must also separate them, add it to the key here.
  *
- * LIMITATION - numeric pack suffixes are NOT stripped.
+ * LIMITATION — numeric pack suffixes are NOT stripped.
  * "LSFT2205PK" is genuinely ambiguous: it reads as either 220 + 5-pack or
  * 2205 + pack, and nothing in the SKU distinguishes them. Guessing would
- * silently mis-label a whole size. Only the unambiguous "APK" form is stripped.
+ * silently mis-group a whole size.
+ * This is safe today: the Lampshade SOT (451 SKUs) contains NO multi-pack
+ * lampshade SKUs, and none appear in the Unit 3 order data. Only the
+ * unambiguous "APK" form is stripped. If numeric pack SKUs are ever introduced
+ * for lampshades, this function needs a pack-size list to disambiguate.
  */
 function ppProductSize(sku) {
-  // THE SOT IS THE AUTHORITY, and the SKU digits are not a size at all for some
-  // families. Proven on the live SOT 2026-08-18:
-  //
-  //   SKU            digits    SOT Diameter_mm
-  //   LSGL10014AR    10014     140
-  //   LSGL10014CL    10014     100     <- same digits, different size
-  //   LSGL14013AR    14013     140
-  //   LSGL100145BL   100145    140
-  //   LSGLWA140AR    140       150     <- the digits even contradict the SOT
-  //
-  // Parsing the SKU printed "14013mm" and "100145mm" on the collection card and
-  // spoke them aloud. Two SKUs sharing 10014 have different real sizes, so no
-  // parsing rule can ever recover this - only the SOT can.
-  var key = String(sku || '').trim().toUpperCase();
-  var hit = ppLoadSot()[key];
-  if (hit) {
-    var v = hit.width || hit.size || hit.height;   // Width, else Diameter, else Height
-    if (v) return v;
-  }
-
-  // Fallback for anything the SOT does not carry. The millimetre-size grammar
-  // belongs to the LS families only: WCB7BS is cage size 7, not 7mm, and
-  // WCCYSQBM2PK ends in a 2-pack code - reading either as a size printed "7mm"
-  // and "2mm" on the card, which is the wrong shelf.
-  var s = key.replace(/APK$/, '');
-  if (s.indexOf('LS') !== 0) return '';
+  var s = String(sku || '').toUpperCase().replace(/APK$/, '');
   var m = s.match(/^[A-Z]+(\d+)/);
   return m ? m[1] : '';
 }
 
-/**
- * How a size READS on the collection card. The SOT keeps Width and Height in
- * separate columns, so where both exist the packer is shown both - a 140 wide
- * by 130 tall shade and a 140 wide by 200 tall shade are different products
- * sitting on different shelves, and one number cannot tell them apart.
- *
- * @return {string} "140 x 130 mm", "140mm", "H 200mm", or "" when unknown.
- */
-function ppProductSizeLabel(sku) {
-  var hit = ppLoadSot()[String(sku || '').trim().toUpperCase()];
-  var w = hit ? (hit.width || hit.size) : '';
-  var h = hit ? hit.height : '';
-  if (w && h) return w + ' x ' + h + ' mm';
-  if (w) return w + 'mm';
-  if (h) return 'H ' + h + 'mm';
-  var fallback = ppProductSize(sku);
-  return fallback ? fallback + 'mm' : '';
-}
-
-/** The same size as SPOKEN words. "x" does not read aloud; "by" does. */
-function ppProductSizeSpeech(sku) {
-  var hit = ppLoadSot()[String(sku || '').trim().toUpperCase()];
-  var w = hit ? (hit.width || hit.size) : '';
-  var h = hit ? hit.height : '';
-  if (w && h) return w + ' by ' + h + ' millimeter';
-  if (w) return w + ' millimeter';
-  if (h) return 'height ' + h + ' millimeter';
-  var fallback = ppProductSize(sku);
-  return fallback ? fallback + ' millimeter' : '';
-}
-
 // ===========================================================================
-// PACKING WORKFLOW - just-in-time lampshade collection
+// PACKING WORKFLOW — just-in-time lampshade collection
 // ===========================================================================
+// Rule supplied 2026-08-14:
+//
 //   * Process orders in queue sequence.
-//   * An order with no collectible lampshade is packed normally.
-//   * When an order needs collectible lampshades the pool cannot cover, a
-//     collection is TRIGGERED at that order - never everything up front.
-//   * List-1 shortages and list-2 shortages produce SEPARATE collections.
-//   * Following orders are packed from the pool without a new trigger, until
-//     the pool can no longer cover one.
+//   * Orders with no lampshade are packed normally.
+//   * When an order needs lampshades AND the already-collected pool cannot
+//     cover it, TRIGGER a collection at that moment.
+//   * The collection looks FORWARD from the triggering order and takes up to 15
+//     lampshades from that order and the ones after it.
+//   * Following orders are packed from that pool without a new trigger.
+//   * When the pool can no longer cover an order, trigger the next collection.
+//   * Never collect everything up front.
 //
 // "Insufficient" is checked PER SKU, not on the total: holding 15 of the wrong
 // shade does not let you pack an order that needs a different one.
@@ -600,180 +473,95 @@ function ppProductSizeSpeech(sku) {
 /**
  * @param {Array<{order, lines:Array<{sku,size,colour,qty,type}>}>} orders  queue sequence
  * @param {number} [maxPerBatch]  defaults to PP_MAX_LAMPSHADE_COLLECTION
- * @return {Array<{seq,order,action,collections,uses}>}
- *   action: 'PACK'                - nothing collectible, pack normally
- *           'PACK_FROM_COLLECTED' - taken from the existing pool
- *           'COLLECT_THEN_PACK'   - one or two collections triggered here
+ * @return {Array<{seq,order,action,collection,uses}>}
+ *   action: 'PACK'                 - no lampshade, pack normally
+ *           'PACK_FROM_COLLECTED'  - lampshade taken from the existing pool
+ *           'COLLECT_THEN_PACK'    - a collection was triggered at this order
  */
 function ppBuildPackingWorkflow(orders, maxPerBatch) {
   var max = maxPerBatch || PP_MAX_LAMPSHADE_COLLECTION;
   var steps = [], pool = {}, batchNo = 0;
 
-  // Collectible lines per order, resolved once. A line that matches neither
-  // list is not in here at all, so it is invisible to the collection and simply
-  // travels with its order.
-  var perOrder = [];
-  for (var pi = 0; pi < orders.length; pi++) {
-    var src = orders[pi].lines || [], acc = [];
-    for (var pj = 0; pj < src.length; pj++) {
-      var ln = src[pj], q = parseFloat(ln.qty) || 0;
-      if (q <= 0) continue;
-      var fam = ppCollectionFamily(ln.sku);
-      if (!fam) continue;
-      acc.push({
-        sku: String(ln.sku || '').toUpperCase().trim(),
-        size: ln.size, sizeLabel: ln.sizeLabel, sizeSay: ln.sizeSay,
-        colour: ln.colour, qty: q,
-        order: orders[pi].order, family: fam.prefix, mode: fam.mode
-      });
+  function shadeLines(o) {
+    var out = [];
+    for (var i = 0; i < o.lines.length; i++) {
+      var l = o.lines[i];
+      if (l.type === 'SHADE' && (parseFloat(l.qty) || 0) > 0) out.push(l);
     }
-    perOrder.push(acc);
-  }
-
-  function linesIn(fi, test) {
-    var all = perOrder[fi], out = [];
-    for (var i = 0; i < all.length; i++) if (test(all[i])) out.push(all[i]);
     return out;
   }
-
-  // Family is part of the group key. Same size and same colour does NOT make
-  // LSBS160OR and LSGD160OR the same product, and a card merging them could not
-  // say how many of each to take.
+  function needOf(o) {
+    var n = {}, ls = shadeLines(o);
+    for (var i = 0; i < ls.length; i++) n[ls[i].sku] = (n[ls[i].sku] || 0) + (parseFloat(ls[i].qty) || 0);
+    return n;
+  }
+  function covered(need) {
+    for (var k in need) if ((pool[k] || 0) < need[k]) return false;
+    return true;
+  }
   function groupLines(lines) {
-    var seq = [], map = {};
+    var order = [], map = {};
     for (var i = 0; i < lines.length; i++) {
-      var ln = lines[i], key = ln.family + '|' + ln.size + '|' + ln.colour;
-      if (!map[key]) {
-        map[key] = { size: ln.size, sizeLabel: ln.sizeLabel || '', sizeSay: ln.sizeSay || '',
-                     colour: ln.colour, qty: 0, skus: [], orders: [] };
-        seq.push(key);
-      }
+      var ln = lines[i], key = ln.size + '|' + ln.colour;
+      if (!map[key]) { map[key] = { size: ln.size, colour: ln.colour, qty: 0, skus: [], orders: [] }; order.push(key); }
       map[key].qty += ln.qty;
       if (map[key].skus.indexOf(ln.sku) === -1) map[key].skus.push(ln.sku);
       if (ln.order && map[key].orders.indexOf(ln.order) === -1) map[key].orders.push(ln.order);
     }
-    var out = [];
-    for (var k = 0; k < seq.length; k++) out.push(map[seq[k]]);
-    return out;
-  }
-
-  // Adds whole lines until the cap would break. Returns true when the caller
-  // must stop scanning further orders.
-  function fill(c, lines, isTrigger) {
-    for (var i = 0; i < lines.length; i++) {
-      var l = lines[i];
-      if (c.total + l.qty > max) {
-        // The TRIGGERING order is always completed, even past 15. Stopping
-        // mid-order would leave it unpackable - the pool would not cover its own
-        // trigger and the packer would reach the bench short. Flagged, not hidden.
-        if (isTrigger) c.overflow = true;
-        else return true;
-      }
-      c.lines.push(l);
-      c.total += l.qty;
-      pool[l.sku] = (pool[l.sku] || 0) + l.qty;
-    }
-    return false;
-  }
-
-  function newBatch(mode, oi) {
-    batchNo++;
-    return {
-      batch: batchNo, mode: mode, total: 0, lines: [], groups: [],
-      triggeredBy: orders[oi].order, overflow: false, isFull: false
-    };
-  }
-
-  function finish(c) {
-    c.groups = groupLines(c.lines);
-    c.isFull = (c.total >= max);
-    return c;
-  }
-
-  // LIST 2 - the whole remaining pack list.
-  function buildFullBatch(oi) {
-    var c = newBatch('FULL', oi);
-    for (var fi = oi; fi < orders.length; fi++) {
-      var ls = linesIn(fi, function (l) { return l.mode === 'FULL'; });
-      if (fill(c, ls, fi === oi)) break;
-    }
-    return finish(c);
-  }
-
-  // LIST 1 - one batch, but each family walks only its OWN run of consecutive
-  // orders and stops at the first order that does not carry it. Two families
-  // short on the same order share the one batch and the one 15 limit.
-  function buildRunBatch(oi, families) {
-    var c = newBatch('RUN', oi);
-    for (var f = 0; f < families.length; f++) {
-      var fam = families[f];
-      var test = (function (fm) {
-        return function (l) { return l.mode === 'RUN' && l.family === fm; };
-      })(fam);
-      for (var fi = oi; fi < orders.length; fi++) {
-        var ls = linesIn(fi, test);
-        if (!ls.length) break;                       // the run ends at this order
-        if (fill(c, ls, fi === oi)) break;
-      }
-    }
-    return finish(c);
+    return order.map(function (k) { return map[k]; });
   }
 
   for (var oi = 0; oi < orders.length; oi++) {
-    var mine = perOrder[oi];
+    var o = orders[oi];
 
-    if (!mine.length) {
-      steps.push({
-        seq: steps.length + 1, order: orders[oi].order,
-        action: 'PACK', collections: [], collection: null, uses: null
-      });
+    if (!shadeLines(o).length) {
+      steps.push({ seq: steps.length + 1, order: o.order, action: 'PACK', collection: null, uses: null });
       continue;
     }
 
-    var need = {};
-    for (var ni = 0; ni < mine.length; ni++) {
-      need[mine[ni].sku] = (need[mine[ni].sku] || 0) + mine[ni].qty;
-    }
+    var need = needOf(o), collection = null;
 
-    // Decide EVERYTHING before building anything: fill() writes into pool, so a
-    // coverage test taken afterwards would read a pool that already contains the
-    // batch we are still deciding about.
-    var runFamilies = [], seenFam = {}, wantFull = false, modeSeq = [];
-    for (var ci = 0; ci < mine.length; ci++) {
-      var l = mine[ci];
-      if ((pool[l.sku] || 0) >= need[l.sku]) continue;      // pool already covers it
-      if (l.mode === 'FULL') {
-        if (!wantFull) { wantFull = true; modeSeq.push('FULL'); }
-      } else {
-        if (!runFamilies.length) modeSeq.push('RUN');
-        if (!seenFam[l.family]) { seenFam[l.family] = true; runFamilies.push(l.family); }
+    if (!covered(need)) {
+      batchNo++;
+      collection = { batch: batchNo, total: 0, lines: [], groups: [], triggeredBy: o.order, overflow: false };
+
+      // Fill forward from THIS order, in queue sequence, whole lines only.
+      //
+      // The TRIGGERING order is always completed, even if that pushes past 15.
+      // Stopping mid-order would leave it un-packable: the pool would not cover
+      // its own trigger, and the packer would be sent to the shelf without
+      // everything that order needs. Exceeding the limit is flagged, not hidden.
+      for (var fi = oi; fi < orders.length; fi++) {
+        var ls = shadeLines(orders[fi]), stop = false;
+        var isTrigger = (fi === oi);
+        for (var li = 0; li < ls.length; li++) {
+          var l = ls[li], q = parseFloat(l.qty) || 0;
+          if (collection.total + q > max) {
+            if (isTrigger) {
+              collection.overflow = true;      // must finish the triggering order
+            } else { stop = true; break; }
+          }
+          collection.lines.push({ sku: l.sku, size: l.size, colour: l.colour, qty: q, order: orders[fi].order });
+          collection.total += q;
+          pool[l.sku] = (pool[l.sku] || 0) + q;
+        }
+        if (stop) break;
       }
-    }
-
-    // Batches are created in the order the shortage first appears on this order,
-    // which is packing-priority order, so the cards match the pick sequence.
-    var collections = [];
-    for (var mi = 0; mi < modeSeq.length; mi++) {
-      collections.push(modeSeq[mi] === 'FULL' ? buildFullBatch(oi) : buildRunBatch(oi, runFamilies));
+      collection.groups = groupLines(collection.lines);
+      collection.isFull = (collection.total >= max);
     }
 
     for (var k in need) pool[k] = (pool[k] || 0) - need[k];
 
     steps.push({
       seq: steps.length + 1,
-      order: orders[oi].order,
-      action: collections.length ? 'COLLECT_THEN_PACK' : 'PACK_FROM_COLLECTED',
-      collections: collections,
-      collection: collections.length ? collections[0] : null,   // first batch, for older callers
+      order: o.order,
+      action: collection ? 'COLLECT_THEN_PACK' : 'PACK_FROM_COLLECTED',
+      collection: collection,
       uses: need
     });
   }
   return steps;
-}
-
-/** How the two scan rules read on screen and in a log. */
-function ppCollectionScopeLabel(mode) {
-  return mode === 'RUN' ? 'These orders only' : 'Whole pack list';
 }
 
 /** Render the workflow as the packer would experience it. */
@@ -782,21 +570,19 @@ function ppFormatWorkflow(steps) {
   for (var i = 0; i < steps.length; i++) {
     var s = steps[i];
     if (s.action === 'PACK') {
-      out.push('Order ' + s.seq + '  [' + s.order + ']  nothing to collect -> pack normally');
+      out.push('Order ' + s.seq + '  [' + s.order + ']  no lampshade -> pack normally');
     } else if (s.action === 'PACK_FROM_COLLECTED') {
       out.push('Order ' + s.seq + '  [' + s.order + ']  lampshade -> use already-collected stock');
     } else {
-      out.push('Order ' + s.seq + '  [' + s.order + ']  LAMPSHADE REQUIRED');
-      for (var ci = 0; ci < s.collections.length; ci++) {
-        var c = s.collections[ci];
-        out.push('   COLLECTION ' + c.batch + '  (' + c.total + '/' + PP_MAX_LAMPSHADE_COLLECTION +
-                 (c.isFull ? ' FULL' : '') + ')  ' + ppCollectionScopeLabel(c.mode) +
-                 (c.overflow ? '  ** single order exceeds the limit **' : ''));
-        for (var q = 0; q < c.groups.length; q++) {
-          var gp = c.groups[q];
-          out.push('        ' + (gp.sizeLabel || gp.size || '?') + ' - ' + (gp.colour || '?') + ' - ' + gp.qty +
-                   '   for ' + gp.orders.join(', '));
-        }
+      var c = s.collection;
+      out.push('Order ' + s.seq + '  [' + s.order + ']  LAMPSHADE REQUIRED - COLLECTION ' + c.batch +
+               '  (' + c.total + '/' + PP_MAX_LAMPSHADE_COLLECTION + (c.isFull ? ' FULL' : '') + ')' +
+               (c.overflow ? '  ** single order exceeds the limit **' : ''));
+      out.push('     collect, combined by size + colour:');
+      for (var q = 0; q < c.groups.length; q++) {
+        var gp = c.groups[q];
+        out.push('        ' + gp.size + ' - ' + (gp.colour || '?') + ' - ' + gp.qty +
+                 '   for ' + gp.orders.join(', '));
       }
     }
   }
@@ -804,28 +590,7 @@ function ppFormatWorkflow(steps) {
 }
 
 /**
- * Voice rendering of one collection. Kept separate from the on-screen text: the
- * display carries SKUs and brackets, which do not speak well. The packer hears
- * size, colour and quantity; the SKU stays on screen.
- */
-function ppCollectionSpeech(c) {
-  // No lead-in here. Two batches can be spoken back to back, and repeating
-  // "Collect lampshades first" between them made the packer think a second,
-  // separate instruction had started. The caller says it once.
-  var out = ['Collection ' + c.batch + '.',
-             c.total + ' lampshade' + (c.total === 1 ? '' : 's') + '.'];
-  for (var i = 0; i < c.groups.length; i++) {
-    var g = c.groups[i];
-    // A cage shade has no millimetre size, so the phrase is dropped rather than
-    // read as "size unknown", which sounds like data the packer must chase.
-    out.push((g.sizeSay ? g.sizeSay + '. ' : '') +
-             (g.colour || 'colour unknown') + '. ' + g.qty + '.');
-  }
-  return out.join(' ');
-}
-
-/**
- * Wiring helper - run the just-in-time collection over the cleaned rows and stamp
+ * Wiring helper — run the just-in-time collection over the cleaned rows and stamp
  * the result into the "Lampshade Collection" column.
  *
  * Orders are keyed on Customer Info + Post Code and kept in first-appearance
@@ -833,13 +598,31 @@ function ppCollectionSpeech(c) {
  * text is written on the FIRST row of the order that triggered it, so the packer
  * sees it before that order is processed.
  *
- * Touches only the "Lampshade Collection" and "Lampshade Collection Speech"
- * columns. No other column, and no other function's behaviour, is affected.
+ * Touches only the "Lampshade Collection" column. No other column, and no other
+ * function's behaviour, is affected.
  *
  * @param {Array<Array>} rows      output rows WITHOUT the header
  * @param {Array<string>} headers  outputHeaders
  * @return {number} how many collections were triggered
  */
+/**
+ * Voice rendering of a collection. Kept separate from the on-screen text: the
+ * display carries SKUs and brackets, which do not speak well. The packer hears
+ * size, colour and quantity; the SKU stays on screen.
+ */
+function ppCollectionSpeech(c) {
+  var out = ['Collect lampshades first.',
+             'Collection ' + c.batch + '.',
+             c.total + ' lampshade' + (c.total === 1 ? '' : 's') + '.'];
+  for (var i = 0; i < c.groups.length; i++) {
+    var g = c.groups[i];
+    out.push((g.size ? g.size + ' millimeter' : 'size unknown') + '. ' +
+             (g.colour || 'colour unknown') + '. ' + g.qty + '.');
+  }
+  out.push('Then pack this order.');
+  return out.join(' ');
+}
+
 function ppStampCollections(rows, headers) {
   var iSku  = headers.indexOf('SKU');
   var iQty  = headers.indexOf('Quantity');
@@ -849,7 +632,7 @@ function ppStampCollections(rows, headers) {
   var iPost = headers.indexOf('Post Code');
   var iOut  = headers.indexOf('Lampshade Collection');
   var iSay  = headers.indexOf('Lampshade Collection Speech');
-  if (iSku < 0 || iOut < 0) return 0;
+  if (iSku < 0 || iType < 0 || iOut < 0) return 0;
 
   // ---- group rows into orders, preserving first-appearance sequence
   var orders = [], byKey = {};
@@ -865,14 +648,9 @@ function ppStampCollections(rows, headers) {
     byKey[key].lines.push({
       sku:    sku,
       size:   ppProductSize(sku),
-      // Grouping still keys on the bare `size` token. `sizeLabel` and `sizeSay`
-      // are what the packer reads and hears, and carry Width x Height when the
-      // SOT supplies both.
-      sizeLabel: ppProductSizeLabel(sku),
-      sizeSay:   ppProductSizeSpeech(sku),
       colour: iCol >= 0 && rows[r][iCol] != null ? String(rows[r][iCol]).trim() : '',
       qty:    rows[r][iQty],
-      type:   iType >= 0 ? rows[r][iType] : ''
+      type:   rows[r][iType]
     });
   }
 
@@ -881,31 +659,23 @@ function ppStampCollections(rows, headers) {
 
   for (var s = 0; s < steps.length; s++) {
     var st = steps[s];
-    if (st.action !== 'COLLECT_THEN_PACK' || !st.collections.length) continue;
+    if (st.action !== 'COLLECT_THEN_PACK' || !st.collection) continue;
+    triggered++;
 
+    var c = st.collection;
     // Structured, machine-readable. Lithursan.gs renders this as its OWN
-    // collection-only view - it is never merged into a customer order card.
-    // A BATCH line opens each block, so one cell can carry two batches.
-    //   BATCH|<n>|<total>|<max>|<OVERFLOW or empty>|<RUN or FULL>
+    // collection-only view - it is never merged into the customer order card.
+    //   BATCH|<n>|<total>|<max>
     //   ITEM|<skus>|<size>|<colour>|<qty>|<orders>
-    var out = [], say = ['Collect lampshades first.'];
-    if (st.collections.length > 1) say.push(st.collections.length + ' collections.');
-    for (var ci = 0; ci < st.collections.length; ci++) {
-      var c = st.collections[ci];
-      triggered++;
-      out.push('BATCH|' + c.batch + '|' + c.total + '|' + PP_MAX_LAMPSHADE_COLLECTION + '|' +
-               (c.overflow ? 'OVERFLOW' : '') + '|' + c.mode);
-      for (var gi = 0; gi < c.groups.length; gi++) {
-        var gp = c.groups[gi];
-        out.push('ITEM|' + gp.skus.join(' + ') + '|' + (gp.sizeLabel || '') +
+    var lines = ['BATCH|' + c.batch + '|' + c.total + '|' + PP_MAX_LAMPSHADE_COLLECTION +
+                 (c.overflow ? '|OVERFLOW' : '')];
+    for (var gi = 0; gi < c.groups.length; gi++) {
+      var gp = c.groups[gi];
+      lines.push('ITEM|' + gp.skus.join(' + ') + '|' + (gp.size ? gp.size + 'mm' : '?') +
                  '|' + (gp.colour || '?') + '|' + gp.qty + '|' + gp.orders.join(', '));
-      }
-      say.push(ppCollectionSpeech(c));
     }
-    say.push('Then pack this order.');
-
-    rows[orders[s].firstRow][iOut] = out.join('\n');
-    if (iSay >= 0) rows[orders[s].firstRow][iSay] = say.join(' ');
+    rows[orders[s].firstRow][iOut] = lines.join('\n');
+    if (iSay >= 0) rows[orders[s].firstRow][iSay] = ppCollectionSpeech(c);
   }
   return triggered;
 }
