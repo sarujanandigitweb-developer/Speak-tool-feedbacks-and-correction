@@ -37,11 +37,12 @@ weeks of work.
 
 ---
 
-Reading the Apps Script confirmed all three, and turned up a fourth nobody had filed: the
-`Cleaned Data` tab is **written twice with different column counts**, leaving a stale
-`SKU Combined` column that survives a later row deletion — and that misaligned column is
-what the tool groups orders by. See
-[C1](documentation/02-code-walkthrough.md).
+Reading the Apps Script confirmed all three, and turned up a fourth nobody had filed:
+`addCombinedSKUSet` writes the same `Combo SKU` string to every row of a component set, making it a
+**product-shape identifier rather than an order identifier** — so two customers who bought the same
+combo are merged into one spoken order. Live data: **4 of 35 group keys span more than one customer,
+one of them five**. See [C1](documentation/02-code-walkthrough.md) and
+[03-unit3-lampshade-logic.md](documentation/03-unit3-lampshade-logic.md).
 
 **Seven one-line fixes close eight tickets** — listed at the end of the
 [code walkthrough](documentation/02-code-walkthrough.md).

@@ -219,19 +219,35 @@ That is exactly what the live sheet shows:
 The duplicate headers in [column-map F3](../data-maps/column-map.md) are **residue from a
 double write**, not a design choice.
 
-It gets worse. `removeRPR44WHAndTransferPostCode()` (`:158`) then **deletes rows**
-(`:288 continue`) and rewrites the sheet. Columns A–O shift up with it; column R does not
-get rebuilt. **`SKU Combined` is now misaligned with the rows beside it.**
+> **⚠️ Correction — verified against the live sheet.** I originally wrote here that
+> `removeRPR44WHAndTransferPostCode()` leaves `SKU Combined` **row-misaligned**, and that order
+> grouping therefore runs off a corrupted column. **That was wrong.** It reads with
+> `getDataRange()` — all 18 columns — and rewrites all 18 per surviving row, so column R travels
+> with its own row. All 8 rows carrying it check out: each row's own SKU is present in its group,
+> and each group is a single customer. Working shown in
+> [03-unit3-lampshade-logic.md](./03-unit3-lampshade-logic.md).
+>
+> **Consequence:** "fix the double write first" is **not** a blocker for the grouping work. It is
+> hygiene. The wrong-parcel bug below stands on its own.
 
-And `Lithursan.gs:60-64` groups orders by that column, in preference to `Combo SKU`:
+Two things do still follow from the double write:
+
+1. **A group can name a component that no longer exists.** Rows 62–63 carry
+   `LDMST64B224+LSUL220BB+RPR44WH` — three SKUs — but the `RPR44WH` row was deleted at `:288`, so
+   only two survive. The packer is told a three-part set and shown two.
+2. **The tool depends on a column no documented path writes** — see below.
+
+The genuine wrong-parcel risk lives in **`Combo SKU` (col M)**, not `SKU Combined`.
+`addCombinedSKUSet` writes the same joined string to *every* row of a component set, making it a
+**product-shape identifier rather than an order identifier** — so two customers who bought the same
+combo share a key, and `Lithursan.gs:64` merges them into one spoken order:
 
 ```js
 const groupKey = skuCombined !== "" ? skuCombined : comboSku;
 ```
 
-**Order grouping is driven by a stale, row-shifted column.** This is the strongest
-explanation yet for the erratic merge behaviour — FB-079 *"RMI order and 2-4 1st order
-came merged"*, FB-075, and the combos that group correctly one day and not the next.
+Verified in live data: **4 of 35 keys span more than one customer**, one of them **five**. That is
+the real explanation for FB-079 *"RMI order and 2-4 1st order came merged"* and FB-075.
 
 `Lithursan.gs:25` also lists `"SKU Combined"` in `neededColumns` and **aborts with an
 alert if it is missing** (`:34-37`) — so the tool now formally depends on the leftover.

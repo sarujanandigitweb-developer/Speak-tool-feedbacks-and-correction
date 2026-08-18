@@ -355,7 +355,14 @@ Mac Callegari Porter 6 PEVERELL GARDENS STEBBING ROAD STEBBING CM6 3ZB
 happening in current production data.** It is consistent with FB-079
 (*"RMI orderum 2-4 1st orderum merge ahh vanthu irukku"*) and FB-075.
 
-### R2 — The grouping key itself is stale and misaligned 🔴 **VERIFIED**
+### R2 — `Cleaned Data` is written twice; the tool depends on the leftovers 🟠 **REVISED**
+
+> **⚠️ Correction.** This finding originally claimed column R ends up **row-misaligned** and that
+> grouping runs off a corrupted column. **Verified false.**
+> `removeRPR44WHAndTransferPostCode()` reads with `getDataRange()` — all 18 columns — and rewrites
+> all 18 per surviving row, so R travels with its own row. All 8 rows carrying it check out.
+> Downgraded from 🔴 to 🟠, and it is **not** a prerequisite for the grouping work.
+> Working in [../documentation/03-unit3-lampshade-logic.md](../documentation/03-unit3-lampshade-logic.md).
 
 `Cleaned Data` is written twice with different widths:
 
@@ -363,13 +370,15 @@ happening in current production data.** It is consistent with FB-079
 - `cleaned.gs:153` writes **15** columns — overwriting A–O only
 
 Columns P, Q, R survive untouched. Observed in both live sheets: `P = Component` (dup), `Q = Send
-Order Instruction` (dup), `R = SKU Combined`. Then `removeRPR44WHAndTransferPostCode()`
-(`cleaned.gs:266-296`) **deletes rows** and rewrites A–O — without rebuilding R. Column R no longer
-lines up with its own rows.
+Order Instruction` (dup), `R = SKU Combined`. What genuinely follows:
 
-`Lithursan.gs:64` prefers that column for grouping. `Lithursan.gs:25, 34-37` also make it
-**mandatory** — the tool aborts if `SKU Combined` is missing, so it now formally depends on a
-leftover.
+- `Lithursan.gs:25, 34-37` make `SKU Combined` **mandatory** — the tool aborts without it, so it
+  formally depends on a column no documented path writes.
+- A group can name a component that no longer exists: rows 62–63 carry
+  `LDMST64B224+LSUL220BB+RPR44WH`, but the `RPR44WH` row was deleted at `cleaned.gs:288`. The packer
+  is told a three-part set and shown two.
+
+**The wrong-parcel risk is R1 above (`Combo SKU`), not this.**
 
 ### R3 — Voice recognition can die permanently, silently 🔴 **VERIFIED**
 

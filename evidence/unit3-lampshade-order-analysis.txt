@@ -1,0 +1,276 @@
+====================================================================================================
+                               UNIT 3 LAMPSHADE — LIVE ORDER ANALYSIS                               
+                     169 line-items across 109 orders   (order code = postcode)                     
+====================================================================================================
+
+Orders REQUIRING a lampshade : 31
+Orders with NO lampshade     : 78  -> packed normally, priority applied to what IS present
+
+
+====================================================================================================
+SECTION 1 — ORDERS WITH LAMPSHADES (queue order)
+====================================================================================================
+  # ORDER CODE CUSTOMER                  SKU            SIZE COLOUR            QTY  NAME
+  1 CT8 8RX    Charlotte Thomason 5 ROX  LSMS320GR       320 Green               1  32 curvy Green
+  2 CM6 3ZB    Mac Callegari Porter 6 P  LSHM400HE       400 Hemp                1  forty hemp Hemp
+  3 KA30 9BY   Miss E Mcghie 59 BURNSID  LSHM400HE       400 Hemp                1  forty hemp Hemp
+  4 HU13 9AN   Sue Rouse 95 BEVERLEY RO  LSHM400HE       400 Hemp                1  forty hemp Hemp
+  5 CF31 4NS   Christopher thomas 10 WE  LSHM400HE       400 Hemp                1  forty hemp Hemp
+  6 WA8 7LR    deborah leadbetter 67 He  LSHM400HE       400 Hemp                2  forty hemp Hemp
+  7 LN1 1BE    Hyunjung Kim 31 Angelica  WCDCBM              Black               2  diamand cage  Black
+  8 WF14 0JD   Tahir Taj Stone Arch 3 T  LSFT220BG       220 Black Gold Inner    2  220 cone shade Black Gold 
+  9 BS20 7PN   Michael Hawkins 117 Kitt  LSMS320CB       320 Cyan Blue           1  32 curvy Cyan blue
+ 10 12437      Joanna Mrozek Baumschule  LSDO210BB       210 Brushed Brass       3  21 dome  Brushed Brass
+ 11 54300      rigaux maryse 30 cottage  LSEL400BM       400 Black               3  40 curvy Black
+ 12 H91 W528   Claudia Burgazzi Headfor  WCDTRO              Rose Gold           3  diamand cage Rose Gold
+ 13 DN15 7BA   Kelly Maxfield 7 Vicarag  LSUL220BB       220 Brushed Brass       4  twenty two umbrella shade 
+ 14 EH13 0JT   Carole Buchan Flat 1, 38  LSTF40BM         40 Black               1  tattai cage Black
+ 15 DH5 9BX    Mark Tulley 18 Elmfield   WCCYSP160GD     160 Gold                1  Glass Lamp Cage Gold
+ 16 PR2 6EU    Sharon McGrath 10 Field   LSUL220BB       220 Brushed Brass       2  twenty two umbrella shade 
+ 17 CV23 1AQ   Amar Tiwana 10 Hansford   LSCY210BG       210 Black Gold Inner    1  kuduvai  Black Gold Inner
+ 18 BN2 4BF    Toby Jordan 11 REDVERS R  LSCY210BG       210 Black Gold Inner    1  kuduvai  Black Gold Inner
+ 19 PH11 8DZ   Mel McFadden G A DAVIDSO  LSCY210BG       210 Black Gold Inner    1  kuduvai  Black Gold Inner
+ 20 GU30 7SH   John Harris 62 Church Ro  LSDO210GR       210 Green               1  21 dome  Green
+ 21 WR9 0NU    Jill Blerkom 10A Doverda  LSDO400WH       400 White               3  40 dome  White
+ 22 SK4 5JD    Kevin Harrington Heaton   LSEL400WH       400 White               1  40 curvy White
+ 23 IP7 7HX    Eleanor Colton Gardeners  LSEL400WH       400 White               1  40 curvy White
+ 24 PL25 3SP   Len Jordan 31 Wheal Rege  LSFT220BL       220 Blue                1  cone shade Blue
+ 25 ME9 7JL    Daniel Geisler Smith Mal  LSFT220NB       220 Navy Blue           1  22 Cone shade
+ 26 Sn110bf    Erjon Barjamaj 11 thomas  LSMS320BG       320 Black Gold Inner    3  thirty two curvy Black Gol
+ 27 NG21 9QA   Samantha Gresswell 14 Ch  LSUL220BS       220 Brushed Silver      1  umbrella shade  Brushed Si
+ 28 G76 7RD    Iain Gordon. 7 Kilpatric  WCBNRR              Rustic Red          2  ballon cage  Rustic Red
+ 29 DA8 1AL    Andrew Ellis 4 Mildred R  WCBNBM              Black               1  ballon cage Black
+ 30 nn56pl     joanna gallas 56 javelin  WCDCBM              Black               1  diamand cage  Black
+ 31 FY8 2HN    Susan Chesworth 19 KESWI  WCDCBM              Black               1  diamand cage  Black
+
+
+====================================================================================================
+SECTION 2 — TOTAL QUANTITY PER SIZE
+====================================================================================================
+ORDER OF APPEARANCE    SIZE  TOTAL QTY
+1                     320mm          5
+2                     400mm         14
+3                        mm         10
+4                     220mm         11
+5                     210mm          7
+6                      40mm          1
+7                     160mm          1
+                        ALL         49
+
+
+====================================================================================================
+SECTION 3 — COLOUR + QUANTITY WITHIN EACH SIZE, AND WHICH ORDERS NEED THEM
+====================================================================================================
+
+  SIZE 320mm — total 5
+     Black Gold Inner  LSMS320BG      qty 3
+         <- Sn110bf    Erjon Barjamaj 11 thom   x3
+     Green             LSMS320GR      qty 1
+         <- CT8 8RX    Charlotte Thomason 5 R   x1
+     Cyan Blue         LSMS320CB      qty 1
+         <- BS20 7PN   Michael Hawkins 117 Ki   x1
+
+  SIZE 400mm — total 14
+     Hemp              LSHM400HE      qty 6
+         <- CM6 3ZB    Mac Callegari Porter 6   x1
+         <- KA30 9BY   Miss E Mcghie 59 BURNS   x1
+         <- HU13 9AN   Sue Rouse 95 BEVERLEY    x1
+         <- CF31 4NS   Christopher thomas 10    x1
+         <- WA8 7LR    deborah leadbetter 67    x2
+     Black             LSEL400BM      qty 3
+         <- 54300      rigaux maryse 30 cotta   x3
+     White             LSDO400WH      qty 3
+         <- WR9 0NU    Jill Blerkom 10A Dover   x3
+     White             LSEL400WH      qty 2
+         <- SK4 5JD    Kevin Harrington Heato   x1
+         <- IP7 7HX    Eleanor Colton Gardene   x1
+
+  SIZE mm — total 10
+     Black             WCDCBM         qty 4
+         <- LN1 1BE    Hyunjung Kim 31 Angeli   x2
+         <- nn56pl     joanna gallas 56 javel   x1
+         <- FY8 2HN    Susan Chesworth 19 KES   x1
+     Rose Gold         WCDTRO         qty 3
+         <- H91 W528   Claudia Burgazzi Headf   x3
+     Rustic Red        WCBNRR         qty 2
+         <- G76 7RD    Iain Gordon. 7 Kilpatr   x2
+     Black             WCBNBM         qty 1
+         <- DA8 1AL    Andrew Ellis 4 Mildred   x1
+
+  SIZE 220mm — total 11
+     Brushed Brass     LSUL220BB      qty 6
+         <- DN15 7BA   Kelly Maxfield 7 Vicar   x4
+         <- PR2 6EU    Sharon McGrath 10 Fiel   x2
+     Black Gold Inner  LSFT220BG      qty 2
+         <- WF14 0JD   Tahir Taj Stone Arch 3   x2
+     Blue              LSFT220BL      qty 1
+         <- PL25 3SP   Len Jordan 31 Wheal Re   x1
+     Navy Blue         LSFT220NB      qty 1
+         <- ME9 7JL    Daniel Geisler Smith M   x1
+     Brushed Silver    LSUL220BS      qty 1
+         <- NG21 9QA   Samantha Gresswell 14    x1
+
+  SIZE 210mm — total 7
+     Brushed Brass     LSDO210BB      qty 3
+         <- 12437      Joanna Mrozek Baumschu   x3
+     Black Gold Inner  LSCY210BG      qty 3
+         <- CV23 1AQ   Amar Tiwana 10 Hansfor   x1
+         <- BN2 4BF    Toby Jordan 11 REDVERS   x1
+         <- PH11 8DZ   Mel McFadden G A DAVID   x1
+     Green             LSDO210GR      qty 1
+         <- GU30 7SH   John Harris 62 Church    x1
+
+  SIZE 40mm — total 1
+     Black             LSTF40BM       qty 1
+         <- EH13 0JT   Carole Buchan Flat 1,    x1
+
+  SIZE 160mm — total 1
+     Gold              WCCYSP160GD    qty 1
+         <- DH5 9BX    Mark Tulley 18 Elmfiel   x1
+
+
+====================================================================================================
+SECTION 4 — COLLECTION BATCHES (max 15, size first, PP_ALLOW_LINE_SPLIT = true)
+====================================================================================================
+
+  BATCH 1   15/15  (FULL)   size(s): 320mm, 400mm
+       320mm  Green             LSMS320GR      x1
+              for: CT8 8RX(x1)
+       320mm  Cyan Blue         LSMS320CB      x1
+              for: BS20 7PN(x1)
+       320mm  Black Gold Inner  LSMS320BG      x3
+              for: Sn110bf(x3)
+       400mm  Hemp              LSHM400HE      x6
+              for: CM6 3ZB(x1), KA30 9BY(x1), HU13 9AN(x1), CF31 4NS(x1), WA8 7LR(x2)
+       400mm  Black             LSEL400BM      x3
+              for: 54300(x3)
+       400mm  White             LSDO400WH      x1
+              for: WR9 0NU(x3)
+
+  BATCH 2   15/15  (FULL)   size(s): 400mm, mm, 220mm
+       400mm  White             LSDO400WH      x2
+              for: WR9 0NU(x3)
+       400mm  White             LSEL400WH      x2
+              for: SK4 5JD(x1), IP7 7HX(x1)
+          mm  Black             WCDCBM         x4
+              for: LN1 1BE(x2), nn56pl(x1), FY8 2HN(x1)
+          mm  Rose Gold         WCDTRO         x3
+              for: H91 W528(x3)
+          mm  Rustic Red        WCBNRR         x2
+              for: G76 7RD(x2)
+          mm  Black             WCBNBM         x1
+              for: DA8 1AL(x1)
+       220mm  Black Gold Inner  LSFT220BG      x1
+              for: WF14 0JD(x2)
+
+  BATCH 3   15/15  (FULL)   size(s): 220mm, 210mm
+       220mm  Black Gold Inner  LSFT220BG      x1
+              for: WF14 0JD(x2)
+       220mm  Brushed Brass     LSUL220BB      x6
+              for: DN15 7BA(x4), PR2 6EU(x2)
+       220mm  Blue              LSFT220BL      x1
+              for: PL25 3SP(x1)
+       220mm  Navy Blue         LSFT220NB      x1
+              for: ME9 7JL(x1)
+       220mm  Brushed Silver    LSUL220BS      x1
+              for: NG21 9QA(x1)
+       210mm  Brushed Brass     LSDO210BB      x3
+              for: 12437(x3)
+       210mm  Black Gold Inner  LSCY210BG      x2
+              for: CV23 1AQ(x1), BN2 4BF(x1), PH11 8DZ(x1)
+
+  BATCH 4   4/15  (11 space left)   size(s): 210mm, 40mm, 160mm
+       210mm  Black Gold Inner  LSCY210BG      x1
+              for: CV23 1AQ(x1), BN2 4BF(x1), PH11 8DZ(x1)
+       210mm  Green             LSDO210GR      x1
+              for: GU30 7SH(x1)
+        40mm  Black             LSTF40BM       x1
+              for: EH13 0JT(x1)
+       160mm  Gold              WCCYSP160GD    x1
+              for: DH5 9BX(x1)
+
+  TOTAL LAMPSHADES: 49   BATCHES: 4
+
+
+====================================================================================================
+SECTION 5 — ORDERS WITH NO LAMPSHADE (pack normally, in priority order)
+====================================================================================================
+ORDER CODE CUSTOMER                  CONTAINS                          PACK SEQUENCE
+W3 6HH     THOMAS HAYNES 11 Baldwyn  BULB                              LDMST64B2286PK
+IP31 2HJ   clare pearce THE GREYHOU  OTHER                             PLHWBS
+NG5 9HQ    Kyle Jones TOP VALLEY 31  OTHER                             TPOSBDBM
+BB4 7RJ    Michelle Barlow 22 DAISY  OTHER                             TPOSBDBM
+TS23 2PF   Patricia lawlor 16 Malve  OTHER                             WCWDRO -> RPR44WH
+CV3 2TQ    Sean McPheat MANAGEMENT   BULB                              LDMST64E2786PK
+AB30 1LR   Rebecca Chapman REISK CO  BULB                              LDSG95DIE2743PK
+CR0 0PS    Kellissia 19 King Henry'  OTHER                             LSCYRO120GD -> RPR44WH
+IP14 1TH   Jess Cook 32 Masefield R  BULB                              LDMST64E2766PK
+BT49 9HQ   Georgina Gallagher 5 Gla  BULB                              LDMC35E1423PK
+EN1 3UU    Anna Lee 17 Graeme Road   BULB                              LDMST64E2742PK
+31319      Dennis Wassermann Nelken  OTHER                             CKB29243DG
+15057      Marco Bianco Via Giovann  BULB,OTHER,ROSE                   LDMST64E274 -> CRSF100BM -> PHSH2BMTYB -> SPUPBM
+75017      HERZOG Maryvonne 110 Bou  BULB                              LDMG95B228
+NG16 1AT   Griffiths 8 Harcourt Cre  OTHER,ROSE                        CRFF100BM -> LHNSE27BM
+BN20 8RN   Johanna Jukes 94 CAVALRY  BULB,OTHER                        LDMST64E274 -> PHDH1HETHE
+cb6 2lf    Alan Robinson 33 silver   OTHER,ROSE                        CRFF100BM -> LHNSE27BM -> CRFF100CO -> LHNSE27CO
+SN14 6EB   janet warren 11 Hill Hay  RECT_ROSE                         CRFF500SN
+LS8 3PE    MR ANTHONY KETTLEWELL 10  ROSE                              CRSF100BM
+E11 4BN    Jacob Bauer 119 TWICKENH  ROSE                              CRSF100CH
+SK152RB    Donna Collins 35 Shaw Mo  ROSE                              CRSF1203WH
+N1 4RE     Stephen Moxham Flat 42,   OTHER                             LHSHE27SN3PK
+ts20 1jt   Graeme Raine 12 Lorrain   OTHER                             LHSHE27YB
+TQ9 6PS    MS TINA KENNEDY AISH COT  OTHER                             LSFT220BW -> RPR44WH
+SA1 6HT    Andrew Thomas 8 PENYGRAI  OTHER                             LSGL15014CL -> RPM40WH
+SP4 9DF    Colleen Podmore 21 Salis  OTHER                             LSGL9015CL -> RPM40WH
+EH4 4PL    Leigh Brown 28 Muirhouse  OTHER                             LSMCP1PBWB
+EH21 7BS   Kim McLaren 30 CLARK AVE  OTHER                             LSSS300NB -> RPR44WH
+SK152RB    Donna Collins 35 Shaw Mo  OTHER                             PHSF2GYRCH
+DL2 1UP    Stuart Smith 2 Ringway G  OTHER                             PSHNOS2BRBM
+SW18 4LW   Ferhaan Malek (PRD) FAC   OTHER                             PSOS4BMBBM
+LU2 7RL    Nina Walker 48 Lorimer C  OTHER                             WCDCBC -> RPR44WH
+BL2 4LN    Joe lewis 23 NOOK FIELDS  OTHER                             WCWYBM
+WS7 2NU    Sian Smith 14 CHORLEY RO  OTHER                             WSFTWH
+L27 6WF    Kevin bolger 9 SHEARWATE  OTHER                             CENU25200WH
+G12 8PZ    Douglas Newell Fulton 3/  OTHER                             CENU50300WH
+OX44 7XD   Robert Abernethy Marylan  OTHER                             CERU36150BL
+BL4 9FP    Hayley Berrell 93 Blinds  OTHER                             CERU36150GR
+GU2 9SU    Chris Fryer 6 Pennings A  OTHER                             CERU36150GR
+EH345AQ    Steven Davidson 20 Huntl  OTHER                             CERU36200WH
+M21 8BB    Attia Quyoum 13 Oak Aven  OTHER                             CKA15STC425WH
+B97 6NW    Sarah Davies 81 PINE TRE  OTHER                             CKCSBY
+CO12 4NH   paul good FLAT 10 ASH CO  OTHER                             CKKLYB
+SA48 7LJ   Colin G Bull Cysgod Y Dd  OTHER                             CKKLYB
+LS13 2JN   Wendy Byron 26 Lincroft   OTHER                             CKRODWRE
+E1 7QU     Sam Flood 9 WHITE CHURCH  OTHER                             FCBRBA6BLGPK
+WA3 2BX    Colette Moss 1 CROFT GRE  BULB                              LDCCB22103PK
+WA7 6BH    Tim Carter 111 Kilncroft  BULB                              LDLIE27SR8
+GL2 0BB    Rachel Smart 21 Breinton  BULB                              LDMA60E274WW
+BL3 1BN    suzanne matthews 112 chu  BULB                              LDMG125B228
+E8 4BL     Dorota Rybka Tin Cafe Lt  BULB                              LDMG125E278
+SK7 5LH    malcolm bailey 46 warwic  BULB                              LDMG125E278
+ST35XW     Laura Ball 6 Deanscroft   BULB                              LDMG95B228
+L36 1UB    Rosie March 47 FAIRWAY H  BULB                              LDMG95B228
+G74 4DH    ryan Dewar 24 Dunvegan P  BULB                              LDMG95B2282PK
+NG5 2BU    claire morgan Flat 4 206  BULB                              LDMG95E274
+CT157NR    Kieran Herbert 35 Church  BULB                              LDMG95E274
+G63 0RE    Andrew Donnachie 12 Gree  BULB                              LDMG95E2783PK
+E14 7TR    Elaine Barry 3 CLEMENCE   BULB                              LDMST64B224
+Sn110bf    Erjon Barjamaj 11 thomas  BULB                              LDMST64E274
+TA21 9GP   amanda eldred 11 Blackdo  BULB                              LDMST64E274
+ME14 2AB   Jamie Howard 9 HEATHFIEL  BULB                              LDMST64E274
+B30 1JA    Shalaw Mohammed 10 Watfo  BULB                              LDMST64E276
+AL10 9ES   Wayne Baverstock 117 Bis  BULB                              LDMT45E274
+WR11 8SQ   Anais Glas 9 Cherry Clos  BULB                              LDMT45E2742PK
+NP13 1QD   Mrs Lesley Barnett 178 A  BULB                              LDMT45E2742PK
+Pe37 8gb   Yvonne Kincaide 6 Ash Me  BULB                              LDMT45E2743PK
+DA16 3DY   Beth 8 CHURCH ROAD WELLI  BULB                              LDSG125E274
+L10 6LU    Susan D’Arcy 7 Sandurst   BULB                              LDSSTRE274
+NE16 5LB   Stuart Craigie 6 Old Far  OTHER                             RWT460YE -> RWT5100YE
+CT2 0JB    Vanessa Wells 11 Rowan C  OTHER                             RWWPSY0660YE
+E6 5PH     Lilian Liu 10 Agnes Clos  OTHER                             RWWPSY0660YE2PK
+PE12 8PN   Paul Bullivant 10, Cavel  OTHER                             RWWPSYBF25GY
+M40 1GQ    kieran senior 55 Graver   OTHER                             STFG4845WH
+DN6 7QL    natasha needham 56 First  OTHER                             STMT18FWH
+EX34 8DJ   Alex Coupland 62 STATION  OTHER                             STPVC17ABLAPK
+OL3 7DE    Michael Roper 5 Ashworth  OTHER                             TSLCQA20WH -> TSWGQBRE
+CR0 2HN    Elena Mihaela Ciulacu 7A  OTHER                             TSTLRUMRB3PK

@@ -1,0 +1,169 @@
+# Claude Code Prompt — Save STFC Daily Task Records to PostgreSQL
+
+> Copy everything inside the fenced block below and paste it into Claude Code as a single prompt.
+> It creates the table if needed, inserts **two** records (2026-08-13 analysis day and 2026-08-14
+> implementation day), and confirms with a SELECT before closing.
+
+---
+
+```text
+Using the PostgreSQL MCP connection, save my STFC daily task records.
+
+SCHEMA:  daily_task
+TABLE:   daily_task.tbl_stfc_sarujanan
+
+STEP 1 — Create the schema and table only if they do not already exist.
+Do not drop or recreate anything that already exists.
+
+CREATE SCHEMA IF NOT EXISTS daily_task;
+
+CREATE TABLE IF NOT EXISTS daily_task.tbl_stfc_sarujanan (
+    id                                SERIAL PRIMARY KEY,
+    daily_requirement_submitted_date  DATE        NOT NULL,
+    expected_deadline_date            DATE,
+    end_user                          TEXT,
+    expected_roi                      TEXT,
+    developer                         TEXT        NOT NULL,
+    task_assigned_by                  TEXT,
+    project                           TEXT,
+    project_code                      TEXT        NOT NULL,
+    phase                             TEXT,
+    requirement_id                    TEXT        NOT NULL,
+    deliverable_id                    TEXT        NOT NULL,
+    blos_keys                         TEXT,
+    domain                            TEXT,
+    task_name                         TEXT,
+    business_purpose                  TEXT,
+    source_system                     TEXT,
+    source_tables                     TEXT,
+    filter_conditions                 TEXT,
+    planned_benefits                  TEXT,
+    work_summary                      TEXT,
+    gaps_found                        TEXT,
+    decisions_made                    TEXT,
+    failure_modes                     TEXT,
+    company_knowledge                 TEXT,
+    code_changed                      BOOLEAN     DEFAULT FALSE,
+    files_changed                     INTEGER     DEFAULT 0,
+    tests_passed                      INTEGER     DEFAULT 0,
+    status                            TEXT,
+    benefit_status                    TEXT,
+    three_am_standard                 BOOLEAN     DEFAULT TRUE,
+    llm_queryable                     BOOLEAN     DEFAULT TRUE,
+    company_knowledge_candidate       BOOLEAN     DEFAULT TRUE,
+    evidence_location                 TEXT,
+    created_at                        TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_stfc_sarujanan_day_deliverable
+        UNIQUE (daily_requirement_submitted_date, requirement_id, deliverable_id)
+);
+
+STEP 2 — Insert the two records below.
+Use ON CONFLICT on the unique constraint to DO NOTHING, so re-running this prompt
+never creates duplicates.
+
+INSERT INTO daily_task.tbl_stfc_sarujanan (
+    daily_requirement_submitted_date, expected_deadline_date, end_user, expected_roi,
+    developer, task_assigned_by, project, project_code, phase,
+    requirement_id, deliverable_id, blos_keys, domain,
+    task_name, business_purpose, source_system, source_tables, filter_conditions,
+    planned_benefits, work_summary, gaps_found, decisions_made, failure_modes,
+    company_knowledge, code_changed, files_changed, tests_passed,
+    status, benefit_status, three_am_standard, llm_queryable,
+    company_knowledge_candidate, evidence_location
+) VALUES
+(
+ '2026-08-13', '2026-08-20', 'Postage & Warehouse Team',
+ 'Reduce repeat defect reports across 6 packing stations; recover approx 1 hour/day lost to repeating voice commands and re-checking mis-spoken orders',
+ 'Sarujanan', 'Varmen', 'Speech Tool - Warehouse Voice Packing', 'STFC',
+ 'Phase-01 - Discovery & Issue Analysis', 'REQ-01', 'REQ-01-D01',
+ 'speak_tool_station_count=6; feedback_items_total=160; lampshade_collection_max=15',
+ 'Warehouse Operations - Order Packing',
+ 'Speech Tool - System Discovery & Issue Root-Cause Analysis',
+ 'Establish the real architecture, data flow and root causes from evidence before any code is changed, because the same defects keep being re-reported after being marked fixed.',
+ 'Google Sheets + Google Apps Script (HTML Service add-on)',
+ 'Sheet1; Cleaned Data; names',
+ 'All 6 stations; feedback 02/06/2025-07/10/2025; code read-only',
+ 'Single verified picture of the tool across 6 stations; 160 feedback rows converted to a traceable register; identify why fixed issues recur; evidence-backed upgrade plan',
+ 'Extracted all 160 feedback items into a normalised register with IDs; fingerprinted all 6 station scripts by md5; profiled Cleaned Data column fill rates; extracted 47 embedded screenshots and read 16; tested two wrong-order hypotheses against live data',
+ 'No product-type/colour/packing-sequence classification exists in code; Combo Color never reaches the tool; mapping function never called AND its required columns absent from the names sheet; Status (international/firstclass) displayed but never spoken; no carrier/note column; 15-lampshade allocation rule undefined; no end-of-queue state; cancelled orders not skipped',
+ 'No code change during discovery; assign an ID to every feedback item; do not trust the Done flag; re-open two not-possible verdicts; measure station drift by md5 rather than assume',
+ 'Group key spans multiple customers (4 of 35 keys, one spans 5 customers) = wrong-parcel risk; postcode dedupe deletes the QR flag; failed name lookup blanks quantity and silences the row; recognition can die permanently; tool triggers its own commands; getValues destroys leading zeros',
+ 'Done without a verification step carries no information (97 claimed vs 15 proven); a single status meaning both not-done and refused guarantees re-reporting; copy-per-station is the root cause of recurring defects (4 versions of Lithursan.gs, only 2 of 6 stations can group orders); product identity must never be inferred from a shared attribute; search reference data for spelling variants before concluding absence; free columns in a shared reference sheet are the cheapest place to add governed attributes',
+ FALSE, 0, 0, 'Completed', 'Pass', TRUE, TRUE, TRUE,
+ '/validation/discovery-report.md; /validation/issues/; /evidence/feedback-register.csv; /documentation/02-code-walkthrough.md'
+),
+(
+ '2026-08-14', '2026-08-21', 'Postage & Warehouse Team',
+ 'Remove repeat-command loss on the next voice command and stop mis-sequenced picking; target approx 1 hour/day recovered per station across 6 stations',
+ 'Sarujanan', 'Varmen', 'Speech Tool - Warehouse Voice Packing', 'STFC',
+ 'Phase-02 - Packing Priority & Voice Reliability Implementation', 'REQ-02', 'REQ-02-D01',
+ 'packing_priority_rank(Shade=1,RectRose=2,Bulb=3,Other=4); lampshade_collection_max=15; mic_speech_watchdog_ms=45000; voice_duplicate_window_ms=1000; voice_max_command_words=5',
+ 'Warehouse Operations - Order Packing',
+ 'Speech Tool - Packing Priority (Colour-Wise) and Voice Recognition Reliability',
+ 'Deliver products to the packer in the correct picking order with lampshade colours kept separate, and make the next voice command work on the first attempt.',
+ 'Google Sheets + Google Apps Script - Unit 3 Lampshade station',
+ 'Sheet1; Cleaned Data; names',
+ 'Unit 3 Lampshade only; voice scope limited to client JS generated by speakTextDialog()',
+ 'Correct picking order; colours never merged; next works first time; microphone state visible; one-button pause/resume',
+ 'Created packing-priority.gs (ppProductType, ppProductColour, ppApplyPackingPriority, ppLampshadeBreakdown); patched cleaned.gs and clean-1.gs identically to add Product Type and Colour columns and apply the priority sort; rewrote the voice recognition lifecycle in Lithursan.gs with explicit state flags, error classification, mic gating during synthesis, a 45s watchdog and a generation guard; added a microphone indicator and pause/resume toggle',
+ '15-unit colour allocation rule still undefined (live max per order is 4, so 15 must be a cross-order wave and the tool has no cross-order state); non-rectangle ceiling roses have no defined rank; box selection data does not exist in this sheet; validation cases B/C/D/F have no real examples; clean-1.gs vs cleaned.gs function collision unresolved',
+ 'Classification derived from evidence not assumption; the >15 allocation rule was NOT invented; both cleaner files patched identically; new columns appended at the end because three functions address columns 4/5/6 by hardcoded index; Lithursan.gs not modified for packing (priority lives in the data layer); existing speech Pause button left alone; truthful listening indicator instead of a simulated volume meter; one prior finding retracted after testing',
+ 'Speech synthesis may never report completion leaving the mic muted (watchdog added); orphaned utterance chain could un-mute early (generation guard added); accessory over-matching by 10 percent (guard added); ceiling roses hidden behind the LS prefix; pre-existing wrong-parcel risk unchanged and still live; recognition remains cloud-backed',
+ 'Warehouse reference data contains systematic misspellings (Retangle, celing) so classifiers must accommodate variants; SKU grammar beats a free-text attribute column; test the category test ORDER not just the test; keyword classifiers need an exclusion guard; a decision matrix with consistent ordering collapses to a stable sort; always add a completion watchdog in async speech systems; where two subsystems share a device model it as owned state; patch every copy in a per-site forked codebase; simulate the external API to test a lifecycle you cannot run',
+ TRUE, 4, 24, 'In Progress', 'Partial', TRUE, TRUE, TRUE,
+ '/capability/unit3-packing-priority-report.md; /capability/unit3-voice-reliability-report.md; /documentation/03-unit3-lampshade-logic.md; /scripts/Unit 3 Lampshade/packing-priority.gs'
+)
+ON CONFLICT ON CONSTRAINT uq_stfc_sarujanan_day_deliverable DO NOTHING;
+
+STEP 3 — Confirm the insert before closing. Run this SELECT and show me the output:
+
+SELECT id,
+       daily_requirement_submitted_date,
+       developer,
+       project_code,
+       phase,
+       requirement_id,
+       deliverable_id,
+       status,
+       benefit_status,
+       code_changed,
+       files_changed,
+       tests_passed,
+       created_at
+FROM   daily_task.tbl_stfc_sarujanan
+WHERE  project_code = 'STFC'
+  AND  developer    = 'Sarujanan'
+ORDER  BY daily_requirement_submitted_date;
+
+Also report the total row count:
+
+SELECT COUNT(*) AS total_rows
+FROM   daily_task.tbl_stfc_sarujanan;
+
+Do not close until the SELECT output has been shown and both records
+(REQ-01-D01 dated 2026-08-13 and REQ-02-D01 dated 2026-08-14) are confirmed present.
+```
+
+---
+
+## Expected confirmation output
+
+| id | date | developer | project_code | requirement_id | deliverable_id | status | code_changed | files_changed | tests_passed |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 2026-08-13 | Sarujanan | STFC | REQ-01 | REQ-01-D01 | Completed | false | 0 | 0 |
+| 2 | 2026-08-14 | Sarujanan | STFC | REQ-02 | REQ-02-D01 | In Progress | true | 4 | 24 |
+
+`total_rows = 2`
+
+---
+
+## Notes
+
+- The unique constraint on `(date, requirement_id, deliverable_id)` makes the prompt **safe to
+  re-run** — a second run inserts nothing rather than duplicating.
+- `CREATE SCHEMA / TABLE IF NOT EXISTS` means the prompt works whether or not the table already
+  exists, as required.
+- All apostrophes have been removed from the literal text so the SQL needs no escaping.
+- The same two records are available as a flat file in
+  [`daily_task_stfc_sarujanan.csv`](./daily_task_stfc_sarujanan.csv) if a bulk `COPY` is preferred
+  over `INSERT`.

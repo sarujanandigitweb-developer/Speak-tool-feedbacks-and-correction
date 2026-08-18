@@ -1,47 +1,40 @@
+/**
+ * DISABLED 2026-08-14 — THIS FUNCTION DESTROYED LIVE DATA.
+ *
+ * What it did: it scanned Sheet1, and for any SKU appearing more than once it
+ * BLANKED every occurrence after the first, then wrote that back over Sheet1:
+ *
+ *     if (seen.has(sku)) { data[i][skuIndex] = ''; }     // <-- permanent
+ *     sheet.getRange(1, 1, ...).setValues(data);
+ *
+ * That is exactly the reported fault: "if the same SKU appears twice only the
+ * first shows; if it appears six times only one shows". Measured on the live
+ * Unit 3 Lampshade Sheet1: 60 of 169 rows had their SKU blanked, and ZERO SKUs
+ * remained duplicated - the signature of a full pass of this function.
+ *
+ * It is not called by mergeAndCleanSheets() or by any menu item, so it can only
+ * have been run by hand from the Apps Script editor. The same function exists in
+ * every other station but has never been run there, which is why only Unit 3
+ * Lampshade is affected.
+ *
+ * It now refuses to run. Duplicate SKUs are NORMAL and REQUIRED: the same product
+ * legitimately appears on many different customer orders.
+ *
+ * The blanked SKUs cannot be restored from code. Recovery was measured against
+ * the live sheet: matching on Title recovers only 29 of 60 safely - 27 have no
+ * other row to match against, and 4 are combo listings whose Title maps to
+ * several different SKUs. Guessing there would write the WRONG SKU onto a
+ * customer's order, which is worse than a blank. Re-import Sheet1 from the order
+ * source instead.
+ */
 function blankDuplicateSKUsInSheet1() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName("Sheet1");
-  if (!sheet) {
-    Logger.log("Sheet1 not found.");
-    return;
-  }
-
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return;
-
-  const headers = data[0];
-  const skuIndex = headers.indexOf("SKU");
-
-  if (skuIndex === -1) {
-    Logger.log("SKU column not found.");
-    return;
-  }
-
-  const skuCount = {};
-  
-  // First pass: count all SKUs
-  for (let i = 1; i < data.length; i++) {
-    const sku = data[i][skuIndex];
-    if (!sku) continue;
-    skuCount[sku] = (skuCount[sku] || 0) + 1;
-  }
-
-  const seen = new Set();
-
-  // Second pass: blank duplicates
-  for (let i = 1; i < data.length; i++) {
-    const sku = data[i][skuIndex];
-    if (!sku || skuCount[sku] < 2) continue;
-
-    if (seen.has(sku)) {
-      data[i][skuIndex] = '';  // Blank duplicate
-    } else {
-      seen.add(sku);  // First appearance — keep
-    }
-  }
-
-  sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
-  Logger.log("Duplicate SKUs (SKU column only) blanked, first occurrence kept.");
+  var msg = "blankDuplicateSKUsInSheet1() is disabled.\n\n" +
+            "It permanently blanks duplicate SKUs in Sheet1. Duplicate SKUs are " +
+            "normal - the same product appears on many orders.\n\n" +
+            "If SKUs are missing from Sheet1, re-import Sheet1 from the order source.";
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* no UI when run headless */ }
+  return;
 }
 
 

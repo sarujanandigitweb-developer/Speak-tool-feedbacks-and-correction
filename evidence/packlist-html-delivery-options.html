@@ -1,0 +1,537 @@
+<title>Speak Tool Without the Spreadsheet</title>
+<style>
+  :root{
+    --ground:#F7F8FA; --surface:#FFFFFF; --surface-2:#EFF2F6;
+    --ink:#16202B; --ink-2:#55677A; --ink-3:#7C8C9C;
+    --rule:#DDE3EA; --rule-2:#C9D2DC;
+    --accent:#0F6E76; --accent-soft:#E2F0F1;
+    --yes:#1C7A4E; --partial:#96690C; --no:#A93B2D;
+    --yes-bg:#E6F2EB; --partial-bg:#F7EEDB; --no-bg:#F7E7E4;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --serif:Charter,"Bitstream Charter","Iowan Old Style","Source Serif Pro",Georgia,serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0E1519; --surface:#141D23; --surface-2:#1B262E;
+      --ink:#E7EDF2; --ink-2:#9BABB8; --ink-3:#7A8B99;
+      --rule:#243139; --rule-2:#31424D;
+      --accent:#54C6CE; --accent-soft:#122E31;
+      --yes:#5FC08A; --partial:#D9A441; --no:#E8776A;
+      --yes-bg:#13291F; --partial-bg:#2C2314; --no-bg:#2C1815;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0E1519; --surface:#141D23; --surface-2:#1B262E;
+    --ink:#E7EDF2; --ink-2:#9BABB8; --ink-3:#7A8B99;
+    --rule:#243139; --rule-2:#31424D;
+    --accent:#54C6CE; --accent-soft:#122E31;
+    --yes:#5FC08A; --partial:#D9A441; --no:#E8776A;
+    --yes-bg:#13291F; --partial-bg:#2C2314; --no-bg:#2C1815;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--serif); font-size:17px; line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px; margin:0 auto; padding:0 28px}
+  .measure{max-width:68ch}
+
+  /* ---------- masthead ---------- */
+  header.mast{border-bottom:1px solid var(--rule); background:var(--surface)}
+  .mast-in{display:flex; flex-direction:column; gap:20px; padding:52px 0 40px}
+  .eyebrow{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin:0;
+  }
+  h1{
+    font-family:var(--sans); font-weight:700; letter-spacing:-.025em;
+    font-size:clamp(30px,4.4vw,46px); line-height:1.08; margin:0;
+    text-wrap:balance; max-width:20ch;
+  }
+  .standfirst{
+    font-size:19px; line-height:1.55; color:var(--ink-2); margin:0; max-width:60ch;
+  }
+  .meta{
+    display:flex; flex-wrap:wrap; gap:8px 26px; padding-top:6px;
+    font-family:var(--mono); font-size:12px; color:var(--ink-3);
+  }
+  .meta b{color:var(--ink-2); font-weight:500}
+
+  /* ---------- section nav ---------- */
+  nav.toc{
+    position:sticky; top:0; z-index:5; background:var(--surface);
+    border-bottom:1px solid var(--rule);
+  }
+  .toc-in{display:flex; gap:0; overflow-x:auto; scrollbar-width:thin}
+  .toc a{
+    flex:none; font-family:var(--mono); font-size:11.5px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ink-3); text-decoration:none;
+    padding:13px 16px 12px; border-bottom:2px solid transparent; white-space:nowrap;
+  }
+  .toc a:first-child{padding-left:0}
+  .toc a:hover,.toc a:focus-visible{color:var(--accent); border-bottom-color:var(--accent)}
+
+  /* ---------- sections ---------- */
+  section{padding:56px 0; border-bottom:1px solid var(--rule)}
+  section:last-of-type{border-bottom:0}
+  h2{
+    font-family:var(--sans); font-weight:700; letter-spacing:-.02em;
+    font-size:26px; line-height:1.2; margin:0 0 6px; text-wrap:balance;
+  }
+  h3{
+    font-family:var(--sans); font-weight:650; letter-spacing:-.01em;
+    font-size:17.5px; margin:30px 0 8px;
+  }
+  .kicker{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--ink-3); margin:0 0 12px;
+  }
+  p{margin:0 0 15px}
+  .lede{font-size:18.5px; color:var(--ink-2)}
+  strong{font-weight:600; color:var(--ink)}
+  code,.mono{font-family:var(--mono); font-size:.855em}
+  code{background:var(--surface-2); padding:.12em .38em; border-radius:3px; color:var(--ink)}
+  a{color:var(--accent)}
+
+  /* ---------- verdict ---------- */
+  .verdict{
+    background:var(--surface); border:1px solid var(--rule);
+    border-left:3px solid var(--accent); border-radius:2px;
+    display:grid; gap:0; margin:26px 0 0;
+  }
+  .vrow{
+    display:grid; grid-template-columns:1fr auto; gap:14px 24px;
+    padding:16px 22px; border-bottom:1px solid var(--rule); align-items:baseline;
+  }
+  .vrow:last-child{border-bottom:0}
+  .vq{font-size:16px; color:var(--ink-2)}
+  .va{font-family:var(--sans); font-weight:650; font-size:15px; text-align:right}
+  .va.y{color:var(--yes)} .va.n{color:var(--no)} .va.p{color:var(--partial)}
+
+  /* ---------- tables ---------- */
+  .scroll{overflow-x:auto; margin:22px 0; border:1px solid var(--rule); border-radius:2px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-family:var(--sans); font-size:14.5px}
+  th,td{padding:11px 16px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top}
+  thead th{
+    font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-3); font-weight:400; background:var(--surface-2); white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:0}
+  td.num,th.num{text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+  td.sel{font-family:var(--mono); font-size:12.5px; color:var(--ink-2)}
+  .mark{display:inline-block; font-family:var(--sans); font-weight:650; font-size:14px}
+  .mark.y{color:var(--yes)} .mark.n{color:var(--no)} .mark.p{color:var(--partial)}
+
+  /* zero-evidence emphasis */
+  td.zero{
+    font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right;
+    font-size:19px; font-weight:600; color:var(--no); background:var(--no-bg); white-space:nowrap;
+  }
+
+  /* ---------- option cards ---------- */
+  .opts{display:grid; gap:18px; margin-top:26px}
+  .opt{
+    background:var(--surface); border:1px solid var(--rule); border-radius:2px;
+    padding:22px 24px 20px; display:grid; gap:12px;
+  }
+  .opt-head{display:flex; gap:14px; align-items:baseline}
+  .badge{
+    flex:none; font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.04em;
+    color:var(--surface); background:var(--ink); width:26px; height:26px;
+    display:grid; place-items:center; border-radius:2px;
+  }
+  .opt.pick .badge{background:var(--accent)}
+  .opt.pick{border-color:var(--accent)}
+  .opt-title{font-family:var(--sans); font-weight:650; font-size:17px; letter-spacing:-.01em; margin:0}
+  .opt-sub{font-size:15px; color:var(--ink-2); margin:2px 0 0}
+  .pill{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+    padding:3px 9px; border-radius:99px; margin-left:auto; flex:none;
+    background:var(--accent-soft); color:var(--accent);
+  }
+  ul.tight{margin:0; padding-left:19px; display:grid; gap:6px}
+  ul.tight li{font-size:15.5px}
+  .col2{display:grid; gap:18px}
+  @media(min-width:720px){.col2{grid-template-columns:1fr 1fr; gap:26px}}
+  .lab{
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-3); margin:0 0 7px;
+  }
+  .lab.good{color:var(--yes)} .lab.bad{color:var(--no)}
+
+  /* ---------- callout ---------- */
+  .note{
+    background:var(--surface); border:1px solid var(--rule);
+    border-left:3px solid var(--partial); border-radius:2px;
+    padding:18px 22px; margin:24px 0;
+  }
+  .note p:last-child{margin-bottom:0}
+  .note .lab{color:var(--partial)}
+
+  footer{padding:40px 0 60px; color:var(--ink-3); font-size:14px; font-family:var(--sans)}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+  @media print{nav.toc{display:none} section{break-inside:avoid}}
+</style>
+
+<header class="mast">
+  <div class="wrap mast-in">
+    <p class="eyebrow">STFC · Speech Tool · Options analysis</p>
+    <h1>Speak Tool Without the Spreadsheet</h1>
+    <p class="standfirst">The pack list already opens as an HTML page. If the Speak Tool were a browser
+      extension — or something else — what could it actually do, and what would break?</p>
+    <div class="meta">
+      <span><b>Author</b> Sarujanan</span>
+      <span><b>Date</b> 17 Aug 2026</span>
+      <span><b>For</b> Varmen</span>
+      <span><b>Status</b> Analysis only — nothing built</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap toc-in">
+    <a href="#summary">Summary</a>
+    <a href="#has">What it has</a>
+    <a href="#missing">What it lacks</a>
+    <a href="#options">Options</a>
+    <a href="#matrix">Comparison</a>
+    <a href="#rec">Recommendation</a>
+    <a href="#blockers">Blockers</a>
+    <a href="#security">Credentials</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="summary">
+    <p class="kicker">Summary</p>
+    <h2>The question has already been half-answered, in this repository</h2>
+    <div class="measure">
+      <p class="lede">The pack list HTML already contains most of what the Speak Tool needs. I confirmed
+        this against 17 real pack list files saved under <code>speak_tool/uploads/</code>, and against an
+        existing Flask prototype — <code>speak_tool/app.py</code>, dated July 2025 — that already scrapes
+        those files into the exact <code>Sheet1</code> layout we use today.</p>
+      <p>That changes what we are deciding. This is not “can we read the pack list without Excel”: that is
+        proven, and already written. The real question is <strong>where the things the pack list does not
+        contain would live</strong> — because those are what the spreadsheet is actually providing.</p>
+    </div>
+
+    <div class="verdict">
+      <div class="vrow"><span class="vq">Can a browser extension read the pack list?</span>
+        <span class="va y">Yes — every field is in the DOM</span></div>
+      <div class="vrow"><span class="vq">Can it speak, show images, take voice commands?</span>
+        <span class="va y">Yes — fewer limits than today</span></div>
+      <div class="vrow"><span class="vq">Can it replace the spreadsheet outright?</span>
+        <span class="va n">Not as-is — six things have no home</span></div>
+      <div class="vrow"><span class="vq">Recommended path</span>
+        <span class="va p">Option C now, Option D as the destination</span></div>
+    </div>
+  </section>
+
+  <section id="has">
+    <p class="kicker">Evidence</p>
+    <h2>What the pack list HTML already gives us</h2>
+    <div class="measure">
+      <p>The selectors below are not guesswork. They are the set the existing prototype already relies on,
+        which I re-verified by parsing the saved pack lists. The largest sample carried 22 orders, 22 product
+        blocks and 21 combo components — the same shape our pipeline handles today.</p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field the Speak Tool needs</th><th>Present</th><th>Where in the DOM</th></tr></thead>
+        <tbody>
+          <tr><td>Customer Info</td><td><span class="mark y">Yes</span></td><td class="sel">div.col-2.small (2nd block)</td></tr>
+          <tr><td>Post Code / Address</td><td><span class="mark y">Yes</span></td><td class="sel">div.fs-6</td></tr>
+          <tr><td>Selling Platform</td><td><span class="mark y">Yes</span></td><td class="sel">div.bg-light.border</td></tr>
+          <tr><td>Price</td><td><span class="mark y">Yes</span></td><td class="sel">div.text-end span span:nth-child(2)</td></tr>
+          <tr><td>Title (marketplace)</td><td><span class="mark y">Yes</span></td><td class="sel">div.fw-bold.border-bottom span</td></tr>
+          <tr><td>SKU</td><td><span class="mark y">Yes</span></td><td class="sel">span[onclick^='copyText']</td></tr>
+          <tr><td>Quantity</td><td><span class="mark y">Yes</span></td><td class="sel">text node “Quantity:”</td></tr>
+          <tr><td>Combo SKU / Colour / Qty</td><td><span class="mark y">Yes</span></td><td class="sel">label.col-3.mb-3 → div.small, span.alert</td></tr>
+          <tr><td>Product images</td><td><span class="mark y">Yes</span></td><td class="sel">img[src] — dashboard.digitweblk.com, contabostorage.com</td></tr>
+          <tr><td>Merge / combo marker</td><td><span class="mark y">Yes</span></td><td class="sel">div.bg-warning…rounded-pill</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note measure">
+      <p class="lab">Found in the prototype — worth taking regardless</p>
+      <p><code>app.py</code> carries a pack-code map our Apps Script does not have:
+        <span class="mono">2PK–9PK = 2–9, APK = 10, CPK = 20, DPK = 30, EPK = 50, FPK = 100, NPK = 200,
+        PPK = 300, QPK = 500, RPK = 1000</span>.</p>
+      <p>This resolves a limitation I documented in <code>ppProductSize()</code>, where
+        <code>LSFT2205PK</code> is ambiguous between “220 + 5-pack” and “2205 + pack”. With this map the
+        ambiguity goes away — useful whichever option is chosen.</p>
+    </div>
+  </section>
+
+  <section id="missing">
+    <p class="kicker">The deciding evidence</p>
+    <h2>What the pack list HTML does not give us</h2>
+    <div class="measure">
+      <p>I searched all 17 pack list files for each of the fields below. Three of them are operational
+        instructions the packer must act on — <em>“Instruction QR Available”</em>, <em>“Commercial Invoice
+        add”</em>, <em>“Label mot print”</em>. They appear <strong>nowhere</strong> in any pack list.</p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field</th><th class="num">In 17 pack lists</th><th class="num">In live Sheet1</th><th>Where it comes from</th></tr></thead>
+        <tbody>
+          <tr><td>Instruction QR</td><td class="zero">0</td><td class="num">23 / 169</td><td>Typed by the team</td></tr>
+          <tr><td>Send Order Instruction</td><td class="zero">0</td><td class="num">3 / 169</td><td>Typed by the team</td></tr>
+          <tr><td>Status</td><td class="zero">0</td><td class="num">20 / 169</td><td>Typed by the team</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="measure">
+      <p>This is the finding that decides the answer. <strong>The spreadsheet is not only carrying data —
+        it is the place where the team writes these in.</strong> Any design that drops it must give them
+        somewhere else to live, or they are lost silently, which is the same failure mode as the silent
+        rows we spent this week removing.</p>
+    </div>
+
+    <h3>Three datasets that come from elsewhere</h3>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Dataset</th><th>Source today</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td>Spoken phonetic name</td><td class="sel">names master 16rx5Dz…</td>
+              <td>What the packer actually hears. The pack list has only the marketplace Title, which is never spoken</td></tr>
+          <tr><td>Product Type, Colour, packing order</td><td class="sel">computed in packing-priority.gs</td>
+              <td>Lampshade → Rect Rose → Bulb → Other, and the 15-unit collection</td></tr>
+          <tr><td>Lampshade SOT</td><td class="sel">1b9n4Rhy…</td>
+              <td>Authoritative colour, size and image for 451 lampshade SKUs</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="options">
+    <p class="kicker">Options</p>
+    <h2>Five ways to deliver this</h2>
+
+    <div class="opts">
+
+      <div class="opt">
+        <div class="opt-head">
+          <span class="badge">A</span>
+          <div><p class="opt-title">Browser extension in the live dashboard page</p>
+            <p class="opt-sub">A content script adds a Speak button straight into the pack list.</p></div>
+        </div>
+        <div class="col2">
+          <div><p class="lab good">Does well</p><ul class="tight">
+            <li><strong>No export step at all.</strong> Open, save, upload, wait, Clean and Merge — that whole chain disappears.</li>
+            <li>Escapes every Apps Script limit: the 6-minute cap, the modal that hangs from the editor, the 1600 px width ceiling.</li>
+            <li>Can cache the names master and SOT locally, so lookups survive a slow network.</li>
+            <li>Can hold real state — pick progress, collection pool, per-component ticks — which one-shot injection cannot.</li>
+          </ul></div>
+          <div><p class="lab bad">Costs</p><ul class="tight">
+            <li>The three typed fields have no home unless the extension builds its own input UI.</li>
+            <li>Needs Google auth inside the browser to reach the names master and SOT.</li>
+            <li><strong>Bound to someone else’s CSS classes.</strong> A styling change on the dashboard silently breaks picking.</li>
+            <li>Install, policy and updates across six stations become an IT task.</li>
+          </ul></div>
+        </div>
+      </div>
+
+      <div class="opt">
+        <div class="opt-head">
+          <span class="badge">B</span>
+          <div><p class="opt-title">Bookmarklet or userscript</p>
+            <p class="opt-sub">The same idea without the packaging — the packer clicks a bookmark on the page.</p></div>
+        </div>
+        <div class="col2">
+          <div><p class="lab good">Does well</p><ul class="tight">
+            <li>Cheapest to deploy and update — no store, no policy, no per-machine install.</li>
+            <li>A realistic way to prove Option A before committing to it.</li>
+          </ul></div>
+          <div><p class="lab bad">Costs</p><ul class="tight">
+            <li>Same DOM fragility as Option A.</li>
+            <li>Tighter limits on storage and cross-origin calls, so caching the names master and SOT is harder.</li>
+          </ul></div>
+        </div>
+      </div>
+
+      <div class="opt pick">
+        <div class="opt-head">
+          <span class="badge">C</span>
+          <div><p class="opt-title">Standalone page, pack list dropped into it</p>
+            <p class="opt-sub">What <code>app.py</code> already half-does — but speaking directly instead of writing to a sheet.</p></div>
+          <span class="pill">Recommended</span>
+        </div>
+        <div class="col2">
+          <div><p class="lab good">Does well</p><ul class="tight">
+            <li><strong>The parser already exists and already works.</strong> Shortest path from where we are.</li>
+            <li>Independent of the dashboard’s release cycle — if their DOM changes, one parser is fixed in one place and picking keeps running meanwhile.</li>
+            <li>Hosts the three typed fields as real inputs, and can persist them.</li>
+            <li>Holds the names master and SOT server-side, so no browser auth work.</li>
+            <li>One place to fix — the six-station drift stops recurring.</li>
+          </ul></div>
+          <div><p class="lab bad">Costs</p><ul class="tight">
+            <li>One step remains for the packer: save or paste the pack list.</li>
+            <li>That step already exists today, and this removes the spreadsheet, Clean and Merge, and Apps Script entirely.</li>
+          </ul></div>
+        </div>
+      </div>
+
+      <div class="opt">
+        <div class="opt-head">
+          <span class="badge">D</span>
+          <div><p class="opt-title">Ask the dashboard team to add the Speak view</p>
+            <p class="opt-sub">Built into the pack list page itself.</p></div>
+          <span class="pill">Destination</span>
+        </div>
+        <div class="col2">
+          <div><p class="lab good">Does well</p><ul class="tight">
+            <li>The correct long-term answer: no scraping, no DOM coupling, no export.</li>
+            <li>The three typed fields become real fields with real validation.</li>
+          </ul></div>
+          <div><p class="lab bad">Costs</p><ul class="tight">
+            <li>Depends entirely on another team’s roadmap, so we cannot schedule it.</li>
+          </ul></div>
+        </div>
+      </div>
+
+      <div class="opt">
+        <div class="opt-head">
+          <span class="badge">E</span>
+          <div><p class="opt-title">Keep the current spreadsheet flow</p>
+            <p class="opt-sub">Everything works, and this week’s nine fixes are tested and ready.</p></div>
+        </div>
+        <div class="col2">
+          <div><p class="lab good">Does well</p><ul class="tight">
+            <li>No new work, no new risk, no migration.</li>
+          </ul></div>
+          <div><p class="lab bad">Costs</p><ul class="tight">
+            <li>Keeps what we already measured: manual export, six forked script copies, hand-typed operational fields.</li>
+            <li>Keeps an editor ▶ Run button that destroyed 60 SKUs in <code>Sheet1</code>.</li>
+          </ul></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="matrix">
+    <p class="kicker">Comparison</p>
+    <h2>Side by side</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th></th><th>A · Extension</th><th>B · Bookmarklet</th><th>C · Web page</th><th>D · Dashboard</th><th>E · Today</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Removes the export step</td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td>
+            <td><span class="mark p">One step left</span></td><td><span class="mark y">Yes</span></td><td><span class="mark n">No</span></td></tr>
+          <tr><td>Removes the spreadsheet</td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td><td><span class="mark n">No</span></td></tr>
+          <tr><td>Removes Apps Script limits</td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td><td><span class="mark n">No</span></td></tr>
+          <tr><td>Fixes the six-copy drift</td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td><td><span class="mark n">No</span></td></tr>
+          <tr><td>Survives a dashboard DOM change</td>
+            <td><span class="mark n">No</span></td><td><span class="mark n">No</span></td>
+            <td><span class="mark p">One parser</span></td><td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td></tr>
+          <tr><td>Homes the three typed fields</td>
+            <td><span class="mark p">Needs new UI</span></td><td><span class="mark n">No</span></td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td><td><span class="mark y">Today</span></td></tr>
+          <tr><td>Names master + SOT lookup</td>
+            <td><span class="mark p">Auth work</span></td><td><span class="mark n">Hard</span></td>
+            <td><span class="mark y">Server-side</span></td><td><span class="mark y">Yes</span></td><td><span class="mark y">Today</span></td></tr>
+          <tr><td>Real pick state / collection pool</td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark p">Limited</span></td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td><td><span class="mark n">No</span></td></tr>
+          <tr><td>We can schedule it ourselves</td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark y">Yes</span></td>
+            <td><span class="mark y">Yes</span></td><td><span class="mark n">No</span></td><td><span class="mark y">Yes</span></td></tr>
+          <tr><td>Reuses work already written</td>
+            <td><span class="mark p">Partly</span></td><td><span class="mark p">Partly</span></td>
+            <td><span class="mark y">Prototype exists</span></td><td><span class="mark n">No</span></td><td><span class="mark y">Yes</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="rec">
+    <p class="kicker">Recommendation</p>
+    <h2>Start with C, treat D as the destination</h2>
+    <div class="measure">
+      <p><strong>Option C is the shortest honest path.</strong> The parser is already written and already
+        correct. Redirecting it from “write to a spreadsheet” to “speak directly” removes the spreadsheet,
+        the Apps Script, the Clean and Merge run and the six forked copies in one move — and it gives the
+        three typed fields a real home instead of a free-text column.</p>
+      <p><strong>Option B is worth one day</strong> if we want to feel the extension experience on the live
+        page before committing to Option A.</p>
+      <p><strong>Option A only after the DOM contract is agreed</strong> with the dashboard team. Building an
+        extension on undocumented CSS classes recreates exactly the fragility we have spent this week
+        removing.</p>
+      <p><strong>Option D should be raised with them now</strong>, because everything in A–C is a workaround
+        for the pack list not offering this itself.</p>
+      <p>Whichever is chosen, the packing logic does not need rewriting. Classification, the conditional
+        priority, the just-in-time collection and the speech segmentation are plain rules — they move across
+        unchanged.</p>
+    </div>
+  </section>
+
+  <section id="blockers">
+    <p class="kicker">Before any build starts</p>
+    <h2>Six questions that block the work</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th class="num">#</th><th>Question</th><th>Why it blocks</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>Where do Instruction QR, Send Order Instruction and Status get entered?</td>
+              <td>46 of 169 rows carry one; they are operational instructions, not decoration</td></tr>
+          <tr><td class="num">2</td><td>Is the pack list DOM stable, and will we be told before it changes?</td>
+              <td>Every option except D depends on it</td></tr>
+          <tr><td class="num">3</td><td>Can the names master and SOT be exposed as an API or scheduled export?</td>
+              <td>Otherwise every option needs Google auth in the browser</td></tr>
+          <tr><td class="num">4</td><td>Does the pack list carry a real order ID?</td>
+              <td>We use the postcode as the order key because Sheet1 has none — and two customers can share a postcode</td></tr>
+          <tr><td class="num">5</td><td>Do the stations have reliable network?</td>
+              <td>Recognition is cloud-backed; synthesis is local. Voice commands fail offline, buttons do not</td></tr>
+          <tr><td class="num">6</td><td>One shared tool for all six stations, or per-station config?</td>
+              <td>The six-copy fork is the root cause of recurring defects</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="security">
+    <p class="kicker">Related finding</p>
+    <h2>Credential handling</h2>
+    <div class="measure">
+      <p><code>speak_tool/service-account-file.json</code> is a live Google service-account private key
+        (<span class="mono">unit4-337@coherent-surf-461012-f8.iam.gserviceaccount.com</span>). It is
+        correctly excluded from git by <code>.gitignore</code> — I verified this. Two points regardless:</p>
+      <ul class="tight" style="margin-bottom:15px">
+        <li><code>app.py</code> hardcodes a Windows path for it, so the key is expected to sit on a
+          developer machine. Any move to a shared service should put it in a secret store, not on disk
+          beside the code.</li>
+        <li>The key grants spreadsheet write access. This week’s SKU loss was caused by a function run by
+          hand from the Apps Script editor, not by this key — but both are the same category:
+          <strong>write access to live data with no guard in front of it.</strong></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    Evidence — 17 pack list files in <span class="mono">speak_tool/uploads/</span> ·
+    <span class="mono">speak_tool/app.py</span> ·
+    live Sheet1 <span class="mono">1AMQMzxu…</span> (169 rows) ·
+    <span class="mono">/validation/issues/unit-3-sku-blanking.md</span> ·
+    <span class="mono">/capability/unit3-packing-priority-report.md</span>
+  </footer>
+
+</main>

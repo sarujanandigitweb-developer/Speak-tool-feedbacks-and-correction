@@ -60,8 +60,35 @@ function mergeAndCleanSheets() {
   outputHeaders.push("Combo SKU");
   if (statusIndex !== -1) outputHeaders.push("Status");
   if (SendOrderInstructionIndex !== -1) outputHeaders.push("Send Order Instruction");
+  // Packing-priority fields. Appended at the END so the hardcoded column
+  // positions used by keepOnlyLastOccurrenceInD/E (4, 5) and
+  // clearFIfDIsEmptyInSheet (6) are unaffected.
+  // SKU Combined used to survive only as RESIDUE: mergeAdjacentRowsAndRepeat()
+  // writes 18 columns and `output` used to write 15, so column 18 was never
+  // overwritten. Adding columns made `output` wider than 18 and destroyed it,
+  // which broke the Speak Tool ("Column SKU Combined not found"). It is now
+  // captured and written deliberately.
+  outputHeaders.push("SKU Combined");
+  outputHeaders.push("Product Type");
+  outputHeaders.push("Colour");
+  outputHeaders.push("Lampshade Collection");
+  outputHeaders.push("Lampshade Collection Speech");
  // merged SKU
   mergeAdjacentRowsAndRepeat();
+
+  // Read back the SKU Combined column it produced. Rows are 1:1 with Sheet1 in
+  // the same order, so index i of this array belongs to sheet1Data[i + 1].
+  var skuCombinedByRow = [];
+  try {
+    var mrgData = cleanedSheet.getDataRange().getValues();
+    var mrgIdx  = mrgData.length ? mrgData[0].indexOf("SKU Combined") : -1;
+    if (mrgIdx !== -1) {
+      for (var mi = 1; mi < mrgData.length; mi++) skuCombinedByRow.push(mrgData[mi][mrgIdx]);
+    }
+  } catch (e) {
+    Logger.log("Could not read SKU Combined: " + e);
+  }
+
   const output = [outputHeaders];
 
   let j = 1;
@@ -113,7 +140,19 @@ function mergeAndCleanSheets() {
     let name = skuToName[lookupSku] || "";
 
     let quantity = (comboQuantityIndex !== -1 && row[comboQuantityIndex]) ? row[comboQuantityIndex] : row[quantityIndex];
-    if (!name) quantity = '';
+    // Was: if (!name) quantity = '';
+    //
+    // Blanking the quantity whenever the names sheet had no entry made the whole
+    // row silent — no name AND no count, so the Speak Tool said nothing while the
+    // product image still appeared in the strip. 19 rows across 14 SKUs were
+    // affected (ENC9045, ENC10233, the LSGL glass shades, …), and a packer who is
+    // never told to pick an item will not pick it.
+    //
+    // The count is now kept whenever the row has a SKU. Lithursan.gs announces
+    // such a row as "This one" plus its colour, and the packer identifies it from
+    // the picture. Rows with no SKU at all are still blanked, which is the case
+    // the original rule was really guarding against.
+    if (!name && !rawSku) quantity = '';
 
     if (rawSku.startsWith("CL") && quantity) {
       quantity = `${quantity} meter`;
@@ -146,9 +185,22 @@ function mergeAndCleanSheets() {
     mergedRow.push(comboSku);
     if (statusIndex !== -1) mergedRow.push(row[statusIndex]);
     if (SendOrderInstructionIndex !== -1) mergedRow.push(row[SendOrderInstructionIndex]);
+    mergedRow.push(skuCombinedByRow[rowIndex - 1] || "");
+    mergedRow.push(ppProductType(rawSku, name));
+    mergedRow.push(ppProductColour(rawSku));
+    mergedRow.push("");   // Lampshade Collection - filled in by ppStampCollections()
+    mergedRow.push("");   // Lampshade Collection Speech - same
 
     output.push(mergedRow);
   }
+
+  // --- Just-in-time lampshade collection (max 15 per trip) ---
+  // Stamps the "Lampshade Collection" column on the first row of each order
+  // that triggers a collection. Changes no other column.
+  var ppRows = output.slice(1);
+  var ppColl = ppStampCollections(ppRows, outputHeaders);
+  for (var ppJ = 0; ppJ < ppRows.length; ppJ++) output[ppJ + 1] = ppRows[ppJ];
+  Logger.log("Lampshade collections triggered: " + ppColl);
 
   cleanedSheet.getRange(1, 1, output.length, output[0].length).setValues(output);
 
@@ -157,6 +209,24 @@ function mergeAndCleanSheets() {
   clearFIfDIsEmptyInSheet(cleanedSheet);
   removeRPR44WHAndTransferPostCode(cleanedSheet);
   addCombinedSKUSet();
+
+  // --- Packing priority (Lampshade -> Rectangle Ceiling Rose -> Bulb -> Other) ---
+  // Reorders rows only WITHIN one customer's block. Rows are never moved between
+  // customers, so the existing order/customer identity is untouched.
+  //
+  // MUST RUN LAST — after addCombinedSKUSet(). That function rebuilds "Combo SKU"
+  // by walking the rows looking for a "Combo: 1" marker and absorbing the
+  // "Combo: 2", "Combo: 3" … rows that FOLLOW it. It therefore depends on the
+  // components still sitting in their original order.
+  //
+  // Sorting first broke exactly that. Moving a lampshade tagged "Combo: 7" to the
+  // top of its order left it above the "Combo: 1" marker, so addCombinedSKUSet()
+  // built its set from the remaining six rows only. One customer order came out
+  // as TWO different Combo SKU values and the Speak Tool showed it as two
+  // separate orders — the lampshade alone, then everything else.
+  // Verified on the live sheet 2026-08-17 (Andreea Szasz, GU4 7HZ).
+  var ppSorted = ppSortCleanedSheetRows(cleanedSheet);
+  Logger.log("Packing priority applied: " + ppSorted + " row(s) reordered.");
 }
 
 function keepOnlyLastOccurrenceInD(sheet) {
@@ -201,6 +271,7 @@ function addCombinedSKUSet() {
   var skuIndex = headers.indexOf("SKU");
   var comboSKUIndex = headers.indexOf("Combo SKU");
   var mergeOrderIndex = headers.indexOf("Merge Order");
+  var skuCombinedIndex = headers.indexOf("SKU Combined");
 
   if (skuIndex === -1 || comboSKUIndex === -1) {
     throw new Error("Could not find 'SKU' or 'Combo SKU' column.");
@@ -212,21 +283,51 @@ function addCombinedSKUSet() {
     for (var i = 1; i < data.length; i++) {
       var mergeVal = (data[i][mergeOrderIndex] || "").toString().trim();
       if (!mergeVal) continue;
-      if (!mergeGroups[mergeVal]) mergeGroups[mergeVal] = [];
-      if (data[i][skuIndex]) mergeGroups[mergeVal].push(data[i][skuIndex]);
+      // Group by "SKU Combined" (adjacency-based, already unique per order) instead
+      // of the Merge Order label text. The label (e.g. "merge order total: 2 :
+      // merge order: 1") only encodes the item count, so unrelated orders with the
+      // same count were colliding into one group here. Fall back to the label only
+      // if SKU Combined isn't populated for this row.
+      var groupKey = (skuCombinedIndex !== -1 && data[i][skuCombinedIndex])
+        ? data[i][skuCombinedIndex].toString().trim()
+        : mergeVal;
+      if (!groupKey) continue;
+      if (!mergeGroups[groupKey]) mergeGroups[groupKey] = [];
+      if (data[i][skuIndex]) mergeGroups[groupKey].push(data[i][skuIndex]);
     }
     for (var i = 1; i < data.length; i++) {
       var mergeVal = (data[i][mergeOrderIndex] || "").toString().trim();
-      if (mergeVal && mergeGroups[mergeVal]) {
-        data[i][comboSKUIndex] = mergeGroups[mergeVal].join("+");
+      if (!mergeVal) continue;
+      var groupKey = (skuCombinedIndex !== -1 && data[i][skuCombinedIndex])
+        ? data[i][skuCombinedIndex].toString().trim()
+        : mergeVal;
+      if (groupKey && mergeGroups[groupKey]) {
+        data[i][comboSKUIndex] = mergeGroups[groupKey].join("+");
       }
     }
   }
 
   // --- Component sets ---
+  //
+  // A set starts at a "Combo: 1" marker and absorbs the "Combo: 2", "Combo: 3" …
+  // rows that follow it. It must NEVER run past the end of one customer's order.
+  //
+  // It used to do exactly that. The loop tracked only the marker sequence, so
+  // when an order's own "Combo: 1" row was missing its rows were swallowed by
+  // the PREVIOUS customer's set. Live example 2026-08-17:
+  //
+  //   row 96  PHSF2BMRBY  Combo: 1  £29.76  Emeline martinez
+  //   row 97  SPSDP2BM    Combo: 2  £29.76  Emeline martinez
+  //   row 98  RPM40WH     Combo: 2  £13.89  Andrew Thomas    <-- absorbed
+  //
+  // All three were stamped "PHSF2BMRBY+SPSDP2BM+RPM40WH", so the Speak Tool read
+  // Andrew's reducer as part of Emeline's parcel — a mis-pick waiting to happen.
+  // The customer is now part of the condition, so a set ends at the boundary.
+  var customerIndex = headers.indexOf("Customer Info");
   if (componentIndex !== -1) {
     var currentSetRows = [];
     var currentSetSKUs = [];
+    var currentSetCustomer = null;
     var inSet = false;
 
     function flushSet() {
@@ -238,21 +339,28 @@ function addCombinedSKUSet() {
       }
       currentSetRows = [];
       currentSetSKUs = [];
+      currentSetCustomer = null;
       inSet = false;
     }
 
     for (var i = 1; i < data.length; i++) {
       var comp = data[i][componentIndex];
+      var cust = (customerIndex !== -1 && data[i][customerIndex] != null)
+        ? data[i][customerIndex].toString().trim() : "";
+
       if (comp && typeof comp === "string" && comp.trim() === "Combo: 1") {
         flushSet();
         inSet = true;
+        currentSetCustomer = cust;
         currentSetRows.push(i);
         if (data[i][skuIndex]) currentSetSKUs.push(data[i][skuIndex]);
-      } 
-      else if (inSet && comp && typeof comp === "string" && /^Combo:\s*\d+/.test(comp)) {
+      }
+      // Continue the set ONLY while the row still belongs to the same customer.
+      else if (inSet && cust === currentSetCustomer &&
+               comp && typeof comp === "string" && /^Combo:\s*\d+/.test(comp)) {
         currentSetRows.push(i);
         if (data[i][skuIndex]) currentSetSKUs.push(data[i][skuIndex]);
-      } 
+      }
       else {
         flushSet();
       }
