@@ -9,9 +9,21 @@
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 
+/* The shared-rules folder has been renamed once already, so it is looked up
+ * rather than hard-coded. The build stops with a clear message if it moves
+ * again, instead of failing with an ENOENT halfway through. */
+const RULES_DIRS = ['speak_tool_html_sheet_UI', 'speak_tool_html'];
+const RULES = RULES_DIRS.find(d => fs.existsSync(path.join(root, d, 'engine.js')));
+if (!RULES) {
+  console.error('\n  BUILD FAILED: cannot find engine.js.');
+  console.error('  Looked in: ' + RULES_DIRS.join(', '));
+  console.error('  If the folder was renamed, add the new name to RULES_DIRS.\n');
+  process.exit(1);
+}
+
 const parts = [
-  ['reference data (names master + Lampshade SOT)', 'speak_tool_html/reference-data.js'],
-  ['packing rules engine',                          'speak_tool_html/engine.js'],
+  ['reference data (names master + Lampshade SOT)', RULES + '/reference-data.js'],
+  ['packing rules engine',                          RULES + '/engine.js'],
   ['pack list extension (UI, speech, voice)',       'packlist_extension/src/speak-extension.js'],
 ];
 
@@ -48,6 +60,28 @@ console.log(`built ${path.relative(root, dest)}  ${(out.length / 1024).toFixed(0
  * <script type="text/plain"> block early. The loader reverses it before use.
  * ------------------------------------------------------------------------- */
 const tpl = fs.readFileSync(path.join(__dirname, 'src', 'speak-loader.template.html'), 'utf8');
+
+/* GUARD — this has bitten three times now.
+ * Inside a <script> block the HTML parser stops at the first "</script", and
+ * "<!--" pushes it into script-data escaped state where the closing tag stops
+ * working. Either one, even in a comment, kills the whole loader with
+ * "Unexpected token '<'". The template's own inline script is checked here so
+ * the build fails loudly instead of shipping a dead page. */
+(function guardInlineScript() {
+  var blocks = tpl.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g) || [];
+  blocks.forEach(function (block) {
+    if (/type\s*=\s*["']text\/plain["']/.test(block)) return;      // the payload holder
+    var body = block.replace(/^<script[^>]*>/, '').replace(/<\/script>$/, '');
+    ['<' + 'script', '<' + '!--'].forEach(function (bad) {
+      if (body.indexOf(bad) !== -1) {
+        console.error('\n  BUILD FAILED: the loader\'s inline script contains a literal "' + bad + '".');
+        console.error('  Even in a comment this breaks HTML parsing. Build it from parts instead,');
+        console.error('  e.g.  var OPEN = \'<\' + \'script\';\n');
+        process.exit(1);
+      }
+    });
+  });
+})();
 if (tpl.indexOf('/*__BUNDLE__*/') === -1) {
   console.error('speak-loader.template.html has no /*__BUNDLE__*/ placeholder — nothing to fill.');
   process.exit(1);

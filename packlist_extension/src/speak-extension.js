@@ -548,6 +548,7 @@
     }
 
     var segs = segments();
+    rememberPosition();
 
     // When several pack lists were merged into one view, say which one this
     // order came from. The loader tags each row with data-stx-file; a single
@@ -569,6 +570,33 @@
       if (e.kind === 'collection') hideZoom();
       else zoomFor(segs[segIndex] ? segs[segIndex].line : null);
     } catch (err) { console.warn('[Speak Tool] zoom:', err); }
+  }
+
+  /* WHERE THE PACKER HAD GOT TO.
+     Restoring the page but not the position would still lose the shift: the
+     packer would be looking at order 1 having packed forty. Two small numbers
+     in sessionStorage - per tab, gone when the tab closes, which is exactly the
+     life of one packing run. */
+  function rememberPosition() {
+    try {
+      sessionStorage.setItem('stxPos', JSON.stringify({ i: index, s: segIndex, n: QUEUE.length }));
+    } catch (e) { /* private mode - the run still works */ }
+  }
+
+  function restorePosition() {
+    try {
+      var raw = sessionStorage.getItem('stxPos');
+      if (!raw) return false;
+      var p = JSON.parse(raw);
+      // Only if it still fits this queue. A different pack list was loaded,
+      // orders were added - anything that changes the length invalidates it,
+      // and landing on the wrong order is worse than starting at the top.
+      if (!p || p.n !== QUEUE.length) return false;
+      if (typeof p.i !== 'number' || p.i < 0 || p.i >= QUEUE.length) return false;
+      index = p.i;
+      segIndex = (typeof p.s === 'number' && p.s >= 0) ? p.s : 0;
+      return true;
+    } catch (e) { return false; }
   }
 
   /* =========================================================================
@@ -1306,7 +1334,9 @@
     STX.nav = nav;
 
     injectPanel();
+    var resumed = restorePosition();
     try { render(); } catch (e) { console.warn('[Speak Tool] render:', e); }
+    if (resumed && STX.debug) console.log('[Speak Tool] resumed at queue entry', index, 'item', segIndex);
 
     // getVoices() famously returns [] on the first call, and onvoiceschanged
     // never fires when the voices are already loaded. Try now, listen, and poll.

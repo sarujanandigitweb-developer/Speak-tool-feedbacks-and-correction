@@ -5,13 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Speak Tool — Pack List</title>
 <style>
+  /* THREE STATES, NOT TWO.
+     A viewer either chose a theme - which stamps data-theme on <html> - or left
+     it on the system setting, which stamps nothing. The light palette is the
+     bare :root default so the un-stamped case is always defined; dark is applied
+     by the system preference OR by an explicit choice, and an explicit light
+     choice beats a dark system. Every colour comes from these tokens, so no rule
+     can end up defined in only one of the three states. */
   :root{
+    --bg:#F3F5F7; --card:#FFFFFF; --card-2:#EEF2F5; --line:#DDE3E9; --line-2:#C4CDD6;
+    --text:#131A21; --text-2:#4E5C6A; --text-3:#778797;
+    --accent:#0F6E76; --accent-hi:#0B565C; --accent-soft:#E2F0F1;
+    --ok:#1F7A4D; --warn:#A6402F;
+    --shadow:0 1px 3px rgba(16,24,32,.10);
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0C1116; --card:#151D25; --card-2:#1C2630; --line:#28343F; --line-2:#3A4956;
+      --text:#E9EFF4; --text-2:#94A6B5; --text-3:#647688;
+      --accent:#0F6E76; --accent-hi:#149BA6; --accent-soft:#0E2B2E;
+      --ok:#3FA96F; --warn:#C86A5C;
+      --shadow:0 1px 3px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
     --bg:#0C1116; --card:#151D25; --card-2:#1C2630; --line:#28343F; --line-2:#3A4956;
     --text:#E9EFF4; --text-2:#94A6B5; --text-3:#647688;
     --accent:#0F6E76; --accent-hi:#149BA6; --accent-soft:#0E2B2E;
     --ok:#3FA96F; --warn:#C86A5C;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -22,13 +46,19 @@
   .app{width:100%;max-width:600px}
 
   header{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+  #theme{margin-left:auto;background:var(--card);color:var(--text-2);border:1px solid var(--line-2);
+         border-radius:8px;padding:7px 12px;font-family:var(--sans);font-size:13px;cursor:pointer;
+         display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  #theme:hover{color:var(--text);border-color:var(--text-3);background:var(--card-2)}
+  #theme:focus-visible{outline:2px solid var(--accent-hi);outline-offset:2px}
   .mark{width:38px;height:38px;flex:none;border-radius:9px;background:var(--accent);
         display:flex;align-items:center;justify-content:center;font-size:19px}
   header h1{font-size:20px;font-weight:650;letter-spacing:-.02em;margin:0;line-height:1.2}
   header p{margin:1px 0 0;font-size:13px;color:var(--text-3);
            font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase}
 
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;
+         box-shadow:var(--shadow)}
 
   #drop{border:2px dashed var(--line-2);border-radius:10px;background:var(--card-2);
         padding:38px 24px;text-align:center;cursor:pointer;
@@ -70,6 +100,9 @@
       <h1>Speak Tool</h1>
       <p>Order pack list</p>
     </div>
+    <button type="button" id="theme" title="Light, dark, or follow the computer">
+      <span id="theme-ic">◑</span><span id="theme-tx">System</span>
+    </button>
   </header>
 
   <div class="panel">
@@ -109,6 +142,40 @@
 
   function say(text, kind) { msg.textContent = text || ''; msg.className = kind || ''; }
 
+  /* Light / dark / follow-the-computer, cycled by one button and remembered.
+     "System" is the default and the honest one: a station set to dark for the
+     night shift should not be overridden by a tool that assumes. */
+  var THEMES = [
+    { id: 'system', ic: '\u25D1', tx: 'System' },
+    { id: 'light',  ic: '\u2600', tx: 'Light'  },
+    { id: 'dark',   ic: '\u263D', tx: 'Dark'   }
+  ];
+
+  function applyTheme(id) {
+    var t = THEMES.filter(function (x) { return x.id === id; })[0] || THEMES[0];
+    if (t.id === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', t.id);
+    var b = document.getElementById('theme');
+    if (b) {
+      document.getElementById('theme-ic').textContent = t.ic;
+      document.getElementById('theme-tx').textContent = t.tx;
+      b.setAttribute('aria-label', 'Theme: ' + t.tx + '. Click to change.');
+    }
+    try { localStorage.setItem('stxTheme', t.id); } catch (e) {}
+    return t.id;
+  }
+
+  var themeNow = 'system';
+  try { themeNow = localStorage.getItem('stxTheme') || 'system'; } catch (e) {}
+  applyTheme(themeNow);
+
+  var themeBtn = document.getElementById('theme');
+  if (themeBtn) themeBtn.addEventListener('click', function () {
+    var i = 0;
+    for (var k = 0; k < THEMES.length; k++) if (THEMES[k].id === themeNow) i = k;
+    themeNow = applyTheme(THEMES[(i + 1) % THEMES.length].id);
+  });
+
   var holder = document.getElementById('stx-bundle');
 
   // Opening the TEMPLATE instead of the built file is the easy mistake: same job,
@@ -122,10 +189,11 @@
     return;
   }
 
-  // Assembled at runtime, never written as literal text. A bare "<!--" or
-  // "<script" in this block pushes the HTML parser into script-data escaped
-  // state, where the closing tag stops working and the page dies with
-  // "Unexpected token '<'".
+  // Assembled at runtime, never written as literal text. An open-comment
+  // sequence or an opening script tag, written literally in this block, pushes
+  // the HTML parser into script-data escaped state - the closing tag then stops
+  // working and the whole page dies with "Unexpected token '<'".
+  // build.js refuses to build if either appears here, comment or not.
   var LT = '<', OPEN = LT + 'script', CLOSE = LT + '/script>', COMMENT = LT + '!--';
 
   // The payload is base64, so it carries no angle brackets at all - nothing for
@@ -273,7 +341,35 @@
     drop.classList.add('busy');
     var label = files.length === 1 ? files[0].name
                                    : files.length + ' pack lists';
+    var parsed = merge(files);
 
+    // Put it on screen FIRST, then write it to storage. Serialising five
+    // megabytes takes a moment and the packer should not be waiting on it.
+    mountPage(parsed, label);
+    setTimeout(function () {
+      try {
+        /* Saved from the MERGED DOCUMENT, not from what is now on screen.
+           document.documentElement by this point also contains the tool - its
+           control bar, its dialogs and the whole 378 KB bundle in a script tag.
+           Storing that would double the size and, on restore, mount a page that
+           already had a #stx-root before the tool injected a second one. The
+           saved copy is the pack list and nothing else. */
+        saveSession('<!DOCTYPE html>' + parsed.documentElement.outerHTML, label)
+          .catch(function () {
+            /* No IndexedDB - private browsing, or a locked-down profile. A
+               try/catch cannot catch a rejected promise, and without this the
+               packer got an uncaught error instead of a working tool. Losing
+               the saved session only means a refresh returns to the chooser;
+               everything else carries on. */
+          });
+      } catch (e) { /* nothing that can be done here either */ }
+    }, 400);
+  }
+
+  /* Puts a pack list on screen, from a live document or from stored HTML.
+     Shared by the file-drop path and by the restore-after-refresh path so both
+     can never drift apart. */
+  function mountPage(docOrHtml, label) {
     // Read the tool out BEFORE the swap: the element holding it is part of this
     // document and is about to be replaced.
     var toolJs = bundle();
@@ -281,7 +377,9 @@
     // DOMParser builds the pack list exactly as written, with no parser state to
     // get wrong. Scripts it creates are inert by design, which is what lets the
     // page's own scripts be re-run deliberately below.
-    var parsed = merge(files);
+    var parsed = (typeof docOrHtml === 'string')
+      ? new DOMParser().parseFromString(docOrHtml, 'text/html')
+      : docOrHtml;
     document.documentElement.replaceWith(document.importNode(parsed.documentElement, true));
     document.title = label + ' — Speak Tool';
 
@@ -304,24 +402,113 @@
     t.textContent = toolJs;
     document.body.appendChild(t);
 
-    addReopen();
+    // A convenience control must never be able to take the mount down with it.
+    // It did exactly that once, and the session save - which runs after this -
+    // silently stopped happening.
+    try { addReopen(); } catch (e) { console.warn('[Speak Tool] back button:', e); }
+  }
+
+  /* ==================================================================
+     SURVIVING A REFRESH
+     ==================================================================
+     The merged page only ever existed in memory, so F5 - or a stray Ctrl+R, or
+     Chrome reloading a backgrounded tab - dropped the packer back to the file
+     chooser mid-shift, with the pack lists to select again.
+
+     The page is therefore kept in IndexedDB. Not localStorage: thirteen merged
+     pack lists come to about 4.8 MB of text, which is roughly 9.6 MB once the
+     browser stores it as UTF-16, and the localStorage budget is about 5 MB for
+     the whole origin. IndexedDB has room to spare and does not block the page
+     while it writes.
+
+     "Open another" clears it, so the chooser is still one click away. */
+  var DB_NAME = 'stxSpeakTool', STORE = 'session';
+
+  function withDb(fn) {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE);
+      };
+      req.onerror = function () { reject(req.error); };
+      req.onsuccess = function () { fn(req.result, resolve, reject); };
+    });
+  }
+
+  function saveSession(html, label) {
+    return withDb(function (db, resolve, reject) {
+      var tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put({ html: html, label: label, at: Date.now() }, 'current');
+      tx.oncomplete = function () { resolve(true); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+
+  function loadSession() {
+    return withDb(function (db, resolve, reject) {
+      var tx = db.transaction(STORE, 'readonly');
+      var get = tx.objectStore(STORE).get('current');
+      get.onsuccess = function () { resolve(get.result || null); };
+      get.onerror = function () { reject(get.error); };
+    });
+  }
+
+  function clearSession() {
+    try { sessionStorage.removeItem('stxPos'); } catch (e) {}
+    return withDb(function (db, resolve, reject) {
+      var tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete('current');
+      tx.oncomplete = function () { resolve(true); };
+      tx.onerror = function () { reject(tx.error); };
+    });
   }
 
   /* "Open another" reloads this page, which is the chooser again. It mounts
      inside the tool's own container so the pack list itself gains nothing. */
+  /* THE WAY BACK TO THE CHOOSER.
+     It used to float at the top right of the window - which is exactly where
+     the pack list already draws its own "Download Snapshot" button, so the two
+     sat on top of each other and the packer could not reliably hit either.
+
+     It now goes into the control bar, first in the row, with the same styling
+     as every other control. That is where a packer already looks for the tool's
+     buttons, it can never collide with the page, and it stays visible while the
+     page scrolls. The floating version is kept only as a fallback for the case
+     where the bar has not been drawn. */
+  function goBackToChooser() {
+    // Clear first, or the reload restores the page we are leaving.
+    clearSession().catch(function () {}).then(function () { location.reload(); });
+  }
+
   function addReopen() {
     (function add() {
-      var r = document.getElementById('stx-root');
-      if (!r) { setTimeout(add, 120); return; }
+      var bar = document.getElementById('stx-bar');
+      var root = document.getElementById('stx-root');
+      if (!bar && !root) { setTimeout(add, 120); return; }
+      if (document.getElementById('stx-back')) return;      // already there
+
       var b = document.createElement('button');
       b.type = 'button';
-      b.textContent = '← Open another';
-      b.style.cssText = 'position:fixed;top:10px;right:12px;z-index:2147483045;' +
-        'background:rgba(12,17,22,.92);color:#E9EFF4;border:1px solid #3A4956;' +
-        'border-radius:6px;padding:7px 13px;font:500 13.5px -apple-system,' +
-        'BlinkMacSystemFont,sans-serif;cursor:pointer';
-      b.onclick = function () { location.reload(); };
-      r.appendChild(b);
+      b.id = 'stx-back';
+      b.title = 'Close these pack lists and choose different ones';
+      b.innerHTML = '\u2190 Open another';
+      b.onclick = goBackToChooser;
+
+      if (bar) {
+        /* Against bar.firstChild, NOT against bar.querySelector('button').
+           The bar's buttons sit inside a <span style="display:contents">, so
+           the first button found is not a child of the bar and insertBefore
+           throws NotFoundError - which took the whole mount down with it,
+           including the call that saves the session. */
+        bar.insertBefore(b, bar.firstChild);
+      } else {
+        b.style.cssText = 'position:fixed;top:10px;right:12px;z-index:2147483045;' +
+          'background:rgba(12,17,22,.92);color:#E9EFF4;border:1px solid #3A4956;' +
+          'border-radius:6px;padding:7px 13px;font:500 13.5px -apple-system,' +
+          'BlinkMacSystemFont,sans-serif;cursor:pointer';
+        root.appendChild(b);
+      }
     })();
   }
 
@@ -364,6 +551,15 @@
   // Coming back with the browser Back button leaves the chooser disabled unless
   // the frozen page state is undone.
   window.addEventListener('pageshow', function () { drop.classList.remove('busy'); say(''); });
+
+  // On load, put the packer back where they were. Nothing is asked - a refresh
+  // mid-shift should be invisible, and "Open another" is right there if a new
+  // pack list is wanted.
+  loadSession().then(function (saved) {
+    if (!saved || !saved.html) return;
+    say('Restoring ' + saved.label + ' …');
+    mountPage(saved.html, saved.label);
+  }).catch(function () { /* no store, private mode, or nothing saved */ });
 })();
 </script>
 </body>

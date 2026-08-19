@@ -29,6 +29,22 @@ packlist_extension/speak-loader.html     ← open this in Chrome
 the pack list*, with the Speak Tool running and the whole window to work in. **← Open
 another** in the top right, or the browser Back button, returns to the chooser.
 
+**Several pack lists at once.** Select or drop as many files as you like. They are merged
+into one continuous view and packed in one run, so there is no reloading between them.
+
+The order is decided by the **number in the file name**, read the way a person reads numbers —
+`1, 2, 3 … 9, 10, 11`, never `1, 10, 11, 2`. The order the file picker happens to hand them
+over is ignored, because it promises nothing. Files with no number keep their alphabetical
+place after the numbered ones.
+
+Each order is merged into the pack list's own `<ul class="col">`, using the dashboard's own
+markup, so nothing is restyled and no wrapper is added — the page simply ends up with more of
+its own rows. The control bar shows which file an order came from: `Order 7 of 40 · file 2`.
+
+One thing IS rewritten: the page prints its own **"Total Orders: 13"**, which after a merge
+describes only the first file. A packer reading 13 while looking at 40 rows would believe the
+tool had lost their work, so the count is corrected to the real total.
+
 There is no frame and nothing to detect. An earlier version showed the pack list inside an
 iframe and then asked the frame whether the tool had started — but a page loaded from
 `file://` is a different origin, so that question always threw, and a tool that was running
