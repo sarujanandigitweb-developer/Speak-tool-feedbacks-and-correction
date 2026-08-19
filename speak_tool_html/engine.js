@@ -85,11 +85,41 @@
   /* ---- packing priority ---------------------------------------------------
      Conditional: which ranking applies depends on whether the order holds a
      Rectangle Ceiling Rose. Rule given 2026-08-14/17. */
+  /* Ranking as stated by the business 2026-08-19, and unchanged since
+     2026-08-14. Bulb is THIRD, ahead of Other.
+
+       Type 1 - a Rectangle Ceiling Rose is in the order
+         Rect Ceiling Rose 1 · Lampshade 2 · Bulb 3 · Other 4
+         (a plain ceiling rose is not called out here, so it packs with Other)
+
+       Type 2 - no Rectangle Ceiling Rose
+         Lampshade 1 · Ceiling Rose 2 · Bulb 3 · Other 4
+
+     Type 3 - neither a Lampshade nor a Ceiling Rose - is handled in
+     applyPriority(): no ranking is applied at all. */
   var RANK_RECT = {RECT_ROSE:1, SHADE:2, BULB:3, ROSE:4, OTHER:4};
   var RANK_PLAIN= {SHADE:1, ROSE:2, BULB:3, OTHER:4};
   function rank(type, hasRect){ return (hasRect?RANK_RECT:RANK_PLAIN)[type] || 4; }
 
+  /* TYPE 3 - the branch that was missing.
+     "If there is no Lampshade and no Ceiling Rose, do not apply any filter.
+      Speak in the exact order in which the items appear in the order."
+
+     Type 2's ranking used to be applied to EVERY order without a rect rose,
+     including orders holding no lampshade and no rose either. Bulb (3) then
+     jumped ahead of Other (4), so a free bulb was called out before the fitting
+     it goes into - order s652qq spoke "Free Bulb" then "Pipe Light Black".
+     There is nothing in such an order to rank against, so the source order
+     stands, whether that is Holder-Bulb-Other or Bulb-Holder-Other.
+     Confirmed 2026-08-19. */
+  function hasPriorityAnchor(lines){
+    return lines.some(function(l){
+      return l.type==='RECT_ROSE' || l.type==='SHADE' || l.type==='ROSE';
+    });
+  }
+
   function applyPriority(lines){
+    if (!hasPriorityAnchor(lines)) return lines;          // branch 3
     var hasRect = lines.some(function(l){ return l.type==='RECT_ROSE'; });
     return lines
       .map(function(l,i){ return {l:l, i:i, r:rank(l.type,hasRect)}; })

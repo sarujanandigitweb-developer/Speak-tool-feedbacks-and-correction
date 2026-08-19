@@ -758,25 +758,11 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       #micIndicator.mic-listening .mic-dot{background:var(--ok); animation:pulse 1.5s ease-in-out infinite}
       #micIndicator.mic-hearing .mic-dot{background:var(--ok); animation:pulse .55s ease-in-out infinite}
       #micIndicator.mic-processing,#micIndicator.mic-speaking{color:var(--ink-3)}
+      #micIndicator.mic-paused{border-color:var(--line-2); color:var(--ink-2); background:var(--sunk)}
       #micIndicator.mic-error{border-color:var(--alert); color:var(--alert); background:var(--alert-soft)}
       #micIndicator.mic-error .mic-dot{background:var(--alert)}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-
-      /* Volume strength meter - replaces the old Mic on/off button.
-         The packer can see at a glance that the microphone is alive and picking
-         up their voice, instead of testing it by saying a command and waiting. */
-      #micLevel{display:inline-flex; align-items:flex-end; gap:3px; height:22px; padding:0 3px;
-        border:1px solid var(--line-2); border-radius:var(--r); background:var(--card)}
-      #micLevel .lv{width:4px; border-radius:2px; background:var(--line-2); transition:background .07s linear}
-      #micLevel .lv:nth-child(1){height:5px}
-      #micLevel .lv:nth-child(2){height:8px}
-      #micLevel .lv:nth-child(3){height:11px}
-      #micLevel .lv:nth-child(4){height:14px}
-      #micLevel .lv:nth-child(5){height:17px}
-      #micLevel .lv:nth-child(6){height:20px}
-      #micLevel .lv.on{background:var(--ok)}
-      #micLevel .lv.hot{background:var(--alert)}
-      #micLevel.is-dead{opacity:.45}
+      #micBtn.mic-off{background:var(--sunk)}
 
       #spokenText{background:var(--card); border:1px solid var(--line); border-left:3px solid var(--accent);
         border-radius:var(--r); padding:11px 16px; flex:none;
@@ -929,7 +915,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         <button type="button" class="primary" onclick="controlSpeech('next')"><span class="ico">&#9197;</span>Next</button>
         <div class="spacer"></div>
         <div class="mic-wrap">
-          <div id="micLevel" class="is-dead" title="Microphone input level"><span class="lv"></span><span class="lv"></span><span class="lv"></span><span class="lv"></span><span class="lv"></span><span class="lv"></span></div>
+          <button type="button" onclick="toggleMic()" id="micBtn" title="Pause or resume voice commands"><span class="ico">&#127908;</span>Mic</button>
           <div id="micIndicator" class="mic-processing"><span class="mic-dot"></span><span id="micText">Starting</span></div>
         </div>
       </div>
@@ -1558,33 +1544,22 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       });
 
       // =====================================================================
-      // VOICE RECOGNITION — always-on, modelled on Unit 4
+      // VOICE RECOGNITION — single authoritative lifecycle
       // ---------------------------------------------------------------------
-      // Why this was rewritten:
-      //   The previous version stopped the microphone every time the tool
-      //   spoke (micSuspendForSpeech -> recognition.stop()) and only restarted
-      //   it 200ms after the whole utterance chain finished. An order takes
-      //   10-30 seconds to speak, so for almost the entire time the packer was
-      //   actually working, the microphone was CLOSED. Saying "next" mid-speech
-      //   did nothing - which is exactly what FB-046/047/055 report.
-      //
-      //   Unit 4 has never had this problem because it never stops the mic:
-      //   continuous = true, and onend simply starts it again. It listens
-      //   straight through its own speech. Unit 4's own feedback row confirms
-      //   it - "While speaking, listen to out commands" -> True -> "Works".
-      //
-      //   So Unit 3 now does the same. The microphone is opened once and kept
-      //   open for the whole session. The only thing that can stop it is a
-      //   fatal permission/hardware error.
-      //
-      //   The one risk of always listening is the tool hearing itself. The
-      //   only command word it ever speaks is ":Post Code:", so that single
-      //   case is filtered by isSelfEcho() below rather than by going deaf.
+      // Previous behaviour and why it failed:
+      //   onresult ended with  recognition.stop(); recognition.start();
+      //   stop() is asynchronous, so start() on the next line threw
+      //   InvalidStateError. That landed in onerror, which only logged - it
+      //   never restarted. Recognition could die permanently mid-session with
+      //   no visible sign, which is why "next" had to be repeated.
+      //   onend also called start() unconditionally, racing the same call.
       // =====================================================================
       var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       var recognition = null;
 
+      var micPausedByUser   = false;  // user intent - the ONLY thing that blocks auto-restart
       var micRunning        = false;  // true between onstart and onend
+      var micSuspendedForTTS= false;  // muted because the tool itself is speaking
       var micFatalError     = "";     // permission / hardware failure - do not retry
       var micRestartTimer   = null;
       var lastCommand       = "";
@@ -1599,24 +1574,32 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       }
 
       function refreshMicUI() {
-        if (micFatalError)   { setMicState("error", "Microphone unavailable - " + micFatalError); }
-        else if (micRunning) { setMicState("listening", "Listening - next, back, repeat, postcode"); }
-        else                 { setMicState("processing", "Starting…"); }
+        var btn = document.getElementById("micBtn");
+        if (micFatalError)          { setMicState("error", "Microphone unavailable - " + micFatalError); }
+        else if (micPausedByUser)   { setMicState("paused", "PAUSED - voice commands off"); }
+        else if (micSuspendedForTTS){ setMicState("speaking", "Speaking - mic off"); }
+        else if (micRunning)        { setMicState("listening", "Listening"); }
+        else                        { setMicState("processing", "Starting…"); }
+        if (btn) {
+          btn.innerHTML = '<span class="ico">\uD83C\uDFA4</span>' + (micPausedByUser ? "Mic off" : "Mic on");
+          btn.className = micPausedByUser ? "mic-off" : "";
+        }
       }
 
       // Safe start: never throws, never creates a second recognition object.
-      // Unit 4 calls recognition.start() raw inside onend, which throws
-      // InvalidStateError if the previous session has not finished closing.
-      // The try/catch is kept for that reason - but unlike before, nothing
-      // except a fatal error can stop the restart from happening.
       function micStart() {
-        if (!recognition || micFatalError || micRunning) return;
+        if (!recognition || micPausedByUser || micFatalError || micSuspendedForTTS || micRunning) return;
         try {
           recognition.start();
         } catch (e) {
           // "already started" - benign, onstart will follow or onend will retry
           console.warn("recognition.start() ignored:", e && e.message);
         }
+      }
+
+      function micStop() {
+        if (!recognition || !micRunning) return;
+        try { recognition.stop(); } catch (e) { console.warn("recognition.stop():", e && e.message); }
       }
 
       function micScheduleRestart(delay) {
@@ -1627,87 +1610,51 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         }, delay || 250);
       }
 
-      // Clears the recogniser's accumulated audio after a command has fired.
+      // Called by speakLine() so the tool never hears its own speech.
       //
-      // Unit 4 does this as  recognition.stop(); recognition.start();  - but
-      // stop() is asynchronous, so its start() throws InvalidStateError and only
-      // works because onend restarts things a moment later anyway. We call stop()
-      // alone and let onend do the restart, which is the same effect without the
-      // exception.
-      //
-      // Needed because the mic no longer closes during speech: without a flush
-      // the tool's own words stay in the buffer and get merged into the NEXT
-      // result too, so one "next" could match twice.
-      function micFlush() {
-        if (!recognition || !micRunning) return;
-        try { recognition.stop(); } catch (e) { console.warn("micFlush:", e && e.message); }
+      // Watchdog: Chrome does not always fire utterance onend (notably after
+      // synth.cancel(), or when the tab is backgrounded). Without a safety net a
+      // missed onend would leave the microphone muted for the rest of the
+      // session - the exact "voice stopped working" failure we are fixing. The
+      // watchdog force-resumes if speech never reports completion.
+      var micSpeechWatchdog = null;
+      var MIC_SPEECH_MAX_MS = 45000;
+
+      function micSuspendForSpeech() {
+        micSuspendedForTTS = true;
+        micStop();
+        refreshMicUI();
+        if (micSpeechWatchdog) clearTimeout(micSpeechWatchdog);
+        micSpeechWatchdog = setTimeout(function () {
+          micSpeechWatchdog = null;
+          if (micSuspendedForTTS) {
+            console.warn("Speech completion never reported - releasing microphone.");
+            micResumeAfterSpeech();
+          }
+        }, MIC_SPEECH_MAX_MS);
       }
 
-      // These two are still called by speakLine() and togglePause(). They are
-      // deliberately kept as no-ops on the microphone itself: the speech code is
-      // outside the scope of this change, and the whole point of the fix is that
-      // the tool speaking must NOT close the microphone any more.
-      //
-      // The watchdog that used to force-release a stuck microphone is gone with
-      // them - nothing mutes the mic now, so there is nothing to get stuck.
-      function micSuspendForSpeech()  { /* mic stays open - see header note */ }
-      function micResumeAfterSpeech() { /* mic never closed - nothing to resume */ }
-
-      // Echo guard. Listening through our own speech means the recogniser can
-      // pick up the tool's voice as well as the packer's. In practice only one
-      // command word is ever spoken aloud by the tool - ":Post Code:" - so that
-      // is the only one suppressed, and only while audio is actually playing.
-      // "next", "back", "repeat" and "restart" stay live at all times, which is
-      // the entire point of the change.
-      function isSelfEcho(action) {
-        return action === "postcode" && synth.speaking;
+      function micResumeAfterSpeech() {
+        if (micSpeechWatchdog) { clearTimeout(micSpeechWatchdog); micSpeechWatchdog = null; }
+        if (!micSuspendedForTTS) return;
+        micSuspendedForTTS = false;
+        refreshMicUI();
+        micScheduleRestart(200);
       }
 
-      // ---- Volume strength meter -------------------------------------------
-      // Replaces the Mic on/off button. SpeechRecognition exposes no level data,
-      // so this opens its own getUserMedia stream and reads an AnalyserNode.
-      // Chrome is happy for both to hold the microphone at the same time, and it
-      // is the same single permission prompt either way.
-      function startVolumeMeter() {
-        var wrap = document.getElementById("micLevel");
-        if (!wrap) return;
-        var bars = wrap.querySelectorAll(".lv");
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-          var Ctx = window.AudioContext || window.webkitAudioContext;
-          if (!Ctx) return;
-          var ctx = new Ctx();
-          if (ctx.state === "suspended") { try { ctx.resume(); } catch (e) {} }
-
-          var analyser = ctx.createAnalyser();
-          analyser.fftSize = 512;
-          analyser.smoothingTimeConstant = 0.75;
-          ctx.createMediaStreamSource(stream).connect(analyser);
-
-          var buf = new Uint8Array(analyser.frequencyBinCount);
-          wrap.classList.remove("is-dead");
-
-          (function draw() {
-            requestAnimationFrame(draw);
-            analyser.getByteTimeDomainData(buf);
-            var peak = 0;
-            for (var i = 0; i < buf.length; i++) {
-              var d = Math.abs(buf[i] - 128);
-              if (d > peak) peak = d;
-            }
-            // /55 so ordinary speaking voice lights most of the bar and only
-            // shouting reaches the red top segment.
-            var lit = Math.round(Math.min(1, peak / 55) * bars.length);
-            for (var b = 0; b < bars.length; b++) {
-              bars[b].className = "lv" + (b < lit ? (b === bars.length - 1 ? " hot" : " on") : "");
-            }
-          })();
-        }).catch(function (e) {
-          console.warn("Volume meter unavailable:", e && e.message);
-          wrap.title = "Microphone level unavailable - " + (e && e.message ? e.message : "blocked");
-        });
+      // Same button toggles pause / resume (one recognition object throughout).
+      function toggleMic() {
+        if (micFatalError) { refreshMicUI(); return; }
+        micPausedByUser = !micPausedByUser;
+        if (micPausedByUser) {
+          if (micRestartTimer) { clearTimeout(micRestartTimer); micRestartTimer = null; }
+          micStop();
+        } else {
+          micScheduleRestart(0);
+        }
+        refreshMicUI();
       }
+      window.toggleMic = toggleMic;
 
       // --- transcript normalisation (case, punctuation, whitespace) ---
       function normalizeTranscript(t) {
@@ -1729,40 +1676,15 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         { action: "postcode", re: /\bpost ?code\b/ }
       ];
 
-      // Finds the command the packer just said inside a transcript that may also
-      // contain the tool's own speech.
-      //
-      // THE BUG THIS FIXES: the old version rejected any transcript longer than
-      // five words. That was correct while the microphone was closed during
-      // speech - a transcript could then only be what the packer said. Now that
-      // the mic stays open (see the header note), Chrome merges the tool's speech
-      // and the packer's command into ONE final result:
-      //
-      //   "s t 6 4 b22 8 wats 6 post code w 3 6 h h next"      <- 16 words
-      //
-      // ...so every command was thrown away at the word-count check. The packer
-      // saw "Heard: next" and nothing happened. Unit 4 never had this because it
-      // uses plain .includes() with no length guard at all.
-      //
-      // The word count is gone. Word-BOUNDARY matching is kept, so "restarting"
-      // or "backing" still do not fire. When several command words appear, the
-      // LAST one wins: the tool's speech is always transcribed before whatever
-      // the packer says on top of it, so the latest match is the live command.
       function matchCommand(text) {
+        // Guard against arbitrary sentences that merely contain a keyword.
         if (!text) return null;
-
-        // "start again" is one instruction, not "start" followed by "again".
-        // Collapsing it first keeps it resolving to restart under last-match-wins.
-        text = text.replace(/\bstart again\b/g, "restart");
-
-        var best = null, bestAt = -1;
+        var words = text.split(" ");
+        if (words.length > 5) return null;
         for (var i = 0; i < VOICE_COMMANDS.length; i++) {
-          var re = new RegExp(VOICE_COMMANDS[i].re.source, "g");
-          var m, at = -1;
-          while ((m = re.exec(text)) !== null) at = m.index;
-          if (at > bestAt) { bestAt = at; best = VOICE_COMMANDS[i].action; }
+          if (VOICE_COMMANDS[i].re.test(text)) return VOICE_COMMANDS[i].action;
         }
-        return best;
+        return null;
       }
 
       if (!SpeechRecognition) {
@@ -1781,10 +1703,16 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         };
 
         // Real signal from the API - not a simulated volume meter.
-        recognition.onspeechstart = function () { setMicState("hearing", "Hearing you…"); };
-        recognition.onspeechend   = function () { refreshMicUI(); };
+        recognition.onspeechstart = function () {
+          if (!micPausedByUser && !micSuspendedForTTS) setMicState("hearing", "Listening…");
+        };
+        recognition.onspeechend = function () {
+          if (!micPausedByUser && !micSuspendedForTTS) refreshMicUI();
+        };
 
         recognition.onresult = function (event) {
+          if (micPausedByUser || micSuspendedForTTS) return;   // ignore late results
+
           for (var i = event.resultIndex; i < event.results.length; i++) {
             if (!event.results[i].isFinal) continue;
 
@@ -1794,10 +1722,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
             voiceFeedbackDiv.innerText = "Heard: " + text;
 
             var action = matchCommand(text);
-            // Logged either way: on the packing floor the only way to tell
-            // "not heard" from "heard but not matched" is to see this line.
-            if (!action) { console.log("  no command in transcript"); continue; }
-            if (isSelfEcho(action)) { console.log("  ignored '" + action + "' - tool is speaking"); continue; }
+            if (!action) continue;
 
             // De-duplicate: the same command inside 1s is one utterance,
             // not two. Different commands are never blocked.
@@ -1812,7 +1737,6 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
             setMicState("processing", "Heard \u201c" + action + "\u201d");
             showLoading(action);
             controlSpeech(action);      // the SAME handler the buttons use
-            micFlush();                 // drop the audio this command came from
           }
         };
 
@@ -1837,13 +1761,13 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         recognition.onend = function () {
           micRunning = false;
           refreshMicUI();
-          // Unit 4 behaviour: come straight back, every time. A fatal
-          // permission/hardware error is the only thing that ends the session.
-          if (!micFatalError) micScheduleRestart(120);
+          // Restart ONLY when the user has not paused and speech is not playing.
+          if (!micPausedByUser && !micFatalError && !micSuspendedForTTS) {
+            micScheduleRestart(250);
+          }
         };
 
         micStart();
-        startVolumeMeter();
       }
       refreshMicUI();
 

@@ -291,6 +291,9 @@ function ppProductImage(sku) {
 // This REPLACES the earlier single fixed ranking, in which a plain ceiling rose
 // always sat with "Other". It now rises to second place, but only in orders that
 // have no Rectangle Ceiling Rose to outrank it.
+// Restated by the business 2026-08-19, unchanged since 2026-08-14. Bulb is
+// THIRD, ahead of Other. What changed is TYPE 3 below: an order with neither a
+// lampshade nor a ceiling rose is no longer ranked at all.
 var PP_RANK_WITH_RECT = { RECT_ROSE: 1, SHADE: 2, BULB: 3, ROSE: 4, OTHER: 4 };
 var PP_RANK_NO_RECT   = { SHADE: 1, ROSE: 2, BULB: 3, OTHER: 4 };
 
@@ -371,10 +374,18 @@ function ppApplyPackingPriority(rows, customerIdx, postcodeIdx, typeIdx) {
       // order contain a Rectangle Ceiling Rose? Scanning the whole block first
       // matters because the deciding row can sit anywhere in the order, not just
       // at the top.
-      var hasRect = false;
+      var hasRect = false, hasAnchor = false;
       for (var h = 0; h < slice.length; h++) {
-        if (slice[h][typeIdx] === 'RECT_ROSE') { hasRect = true; break; }
+        var ty = slice[h][typeIdx];
+        if (ty === 'RECT_ROSE') { hasRect = true; hasAnchor = true; }
+        else if (ty === 'SHADE' || ty === 'ROSE') { hasAnchor = true; }
       }
+
+      // TYPE 3: "if there is no Lampshade and no Ceiling Rose, do not apply any
+      // filter - speak in the exact order the items appear in the order." There
+      // is nothing to rank against, so the source sequence stands, whether that
+      // is Holder-Bulb-Other or Bulb-Holder-Other. Confirmed 2026-08-19.
+      if (!hasAnchor) { start = i; continue; }
 
       // decorate–sort–undecorate keeps the sort stable on older V8 builds
       var decorated = slice.map(function (r, idx) {

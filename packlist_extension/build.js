@@ -19,7 +19,7 @@ const stamp = process.env.BUILD_DATE || '';
 let out = `/* Speak Tool — Order Pack List extension  (single-file build${stamp ? ', ' + stamp : ''})
  *
  * Add ONE line before </body> of the pack list page:
- *     <script src="packlist-speak.js"></script>
+ *     <script src="packlist-speak.js"><\\/script>
  *
  * It adds a fixed control bar and a collection dialog. It does not change,
  * remove or restyle any existing element on the page.

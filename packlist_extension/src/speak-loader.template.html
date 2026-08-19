@@ -76,16 +76,16 @@
     <div id="drop" tabindex="0" role="button" aria-label="Choose an Order Packing HTML file to open">
       <span class="ic">&#128194;</span>
       <b>Drop the Order Packing HTML here</b>
-      <small>or click to choose a file</small>
+      <small>one file, or several at once</small>
     </div>
-    <input type="file" id="file" accept=".html,.htm,text/html" aria-label="Order Packing HTML file to open">
+    <input type="file" id="file" multiple accept=".html,.htm,text/html" aria-label="Order Packing HTML files to open">
 
     <p id="msg" role="status" aria-live="polite"></p>
 
     <div class="aside">
       <p>Packing on another computer? Save a ready-made copy with the tool already inside.</p>
       <button type="button" class="ghost" id="saveBtn">&#11015; Save a copy</button>
-      <input type="file" id="file2" accept=".html,.htm,text/html" aria-label="Order Packing HTML file to save a copy of">
+      <input type="file" id="file2" multiple accept=".html,.htm,text/html" aria-label="Order Packing HTML files to save a copy of">
     </div>
   </div>
 
@@ -139,18 +139,6 @@
       : decodeURIComponent(escape(bin));            // older engines
   }
 
-  /* A small control added to the tool's OWN container, so "back to the chooser"
-     is one click. It goes inside #stx-root like everything else the tool adds,
-     which keeps the pack list itself untouched. */
-  var BACK_SNIPPET =
-    '(function(){function add(){var r=document.getElementById("stx-root");' +
-    'if(!r){return setTimeout(add,120);}var b=document.createElement("button");' +
-    'b.type="button";b.textContent="\\u2190 Open another";' +
-    'b.style.cssText="position:fixed;top:10px;right:12px;z-index:2147483045;' +
-    'background:rgba(12,17,22,.92);color:#E9EFF4;border:1px solid #3A4956;border-radius:6px;' +
-    'padding:7px 13px;font:500 13.5px -apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer";' +
-    'b.onclick=function(){history.back();};r.appendChild(b);}add();})();';
-
   /* The finished page: the pack list byte for byte, with the tool added just
      before </body> — exactly what add-speak.js writes to disk. */
   function prepare(html) {
@@ -159,7 +147,7 @@
     var js = bundle()
       .replace(new RegExp(LT + '\\/(script)', 'gi'), LT + '\\\\/$1')
       .split(COMMENT).join(LT + '\\!--');
-    var tag = '\n' + OPEN + '>\n' + js + '\n' + BACK_SNIPPET + '\n' + CLOSE + '\n';
+    var tag = '\n' + OPEN + '>\n' + js + '\n' + CLOSE + '\n';
     var close = html.search(/<\/body\s*>/i);
     return close === -1 ? html + tag : html.slice(0, close) + tag + html.slice(close);
   }
@@ -168,33 +156,179 @@
     return URL.createObjectURL(new Blob([html], { type: 'text/html' }));
   }
 
-  function readFile(f, then) {
-    if (!f) return;
-    if (!/\.html?$/i.test(f.name)) {
-      say('That is not an HTML file. Choose the Order Packing page you saved.', 'err');
+  /* READING SEVERAL PACK LISTS AT ONCE.
+     ------------------------------------
+     The order they are packed in matters, and a file picker does not promise
+     any particular order, so the names decide it. Sorted the way a person reads
+     numbers, not the way a computer sorts strings: 1, 2, 3 … 9, 10, 11 - never
+     1, 10, 11, 2. Files without a number keep their alphabetical place after
+     the numbered ones. */
+  function sortByName(files) {
+    return files.slice().sort(function (a, b) {
+      var na = (a.name.match(/\d+/) || [])[0];
+      var nb = (b.name.match(/\d+/) || [])[0];
+      if (na !== undefined && nb !== undefined && Number(na) !== Number(nb)) {
+        return Number(na) - Number(nb);
+      }
+      if (na !== undefined && nb === undefined) return -1;
+      if (na === undefined && nb !== undefined) return 1;
+      return a.name.localeCompare(b.name, undefined, { numeric: true });
+    });
+  }
+
+  function readFiles(fileList, then) {
+    var files = [];
+    for (var i = 0; i < fileList.length; i++) files.push(fileList[i]);
+    if (!files.length) return;
+
+    var bad = files.filter(function (f) { return !/\.html?$/i.test(f.name); });
+    if (bad.length) {
+      say('Not an HTML file: ' + bad[0].name + '. Choose the Order Packing pages you saved.', 'err');
       return;
     }
-    var r = new FileReader();
-    r.onload = function () { then(String(r.result), f.name); };
-    r.onerror = function () { say('Could not read that file.', 'err'); };
-    r.readAsText(f);
+
+    files = sortByName(files);
+    say('Opening ' + files.length + (files.length === 1 ? ' file' : ' files') + ' …');
+
+    // Read them all, then hand them over IN ORDER - a FileReader finishes when
+    // it finishes, so the results are placed by index rather than by arrival.
+    var out = new Array(files.length), left = files.length, failed = false;
+    files.forEach(function (f, i) {
+      var r = new FileReader();
+      r.onload = function () {
+        out[i] = { name: f.name, html: String(r.result) };
+        if (--left === 0 && !failed) then(out);
+      };
+      r.onerror = function () {
+        if (failed) return;
+        failed = true;
+        say('Could not read ' + f.name + '.', 'err');
+      };
+      r.readAsText(f);
+    });
   }
 
   /* THE WHOLE FLOW: choose a file, and this page BECOMES the pack list.
      ------------------------------------------------------------------
-     No frame, and therefore nothing to detect. The previous version showed the
-     pack list inside an iframe and then asked the frame whether the tool had
-     started — but a blob page loaded from file:// is a different origin, so that
-     question always threw, and a tool that was running perfectly well was
-     reported as "did not start". Navigating removes the question entirely, and
-     the pack list gets the whole window. Browser Back returns here. */
-  function open_(html, name) {
-    drop.classList.add('busy');
-    say('Opening ' + name + ' …');
-    window.location.href = blobUrl(prepare(html));
+     The document is swapped in place. Three earlier attempts and what each cost:
+
+       document.write()  - left the frame in a parser state that could not be
+                           relied on; the tool sometimes never started.
+       iframe + blob     - a blob page from file:// is a different origin, so the
+                           parent could not see whether the tool had started and
+                           reported a working tool as broken.
+       navigate to blob  - the blob dies with the page that created it, so
+                           REFRESH gave ERR_FILE_NOT_FOUND, and the address bar
+                           read blob:null - the same null origin that blocks the
+                           microphone.
+
+     Replacing the document keeps the real URL. Refresh reloads this chooser
+     instead of failing, and the origin stays whatever the page was served from,
+     so the microphone works over http exactly as it should. */
+  /* MERGING SEVERAL PACK LISTS INTO ONE VIEW.
+     -----------------------------------------
+     The first file becomes the page. Every order from the files after it is
+     moved into that page's own <ul class="col"> - the same element the
+     dashboard already puts orders in - so the markup, the classes and the
+     styling are the dashboard's throughout. Nothing is restyled and no wrapper
+     is introduced; the page simply ends up with more of its own rows.
+
+     Each row is tagged with the file it came from, so the control bar can say
+     "Order 7 of 40 · file 2". The tag is a data attribute and changes nothing
+     that is drawn. */
+  function merge(files) {
+    var first = new DOMParser().parseFromString(files[0].html, 'text/html');
+    var list = first.querySelector('li.bg-white');
+    list = list ? list.parentNode : null;
+
+    first.querySelectorAll('li.bg-white').forEach(function (li) {
+      li.setAttribute('data-stx-file', '1');
+    });
+
+    if (list) {
+      for (var i = 1; i < files.length; i++) {
+        var doc = new DOMParser().parseFromString(files[i].html, 'text/html');
+        doc.querySelectorAll('li.bg-white').forEach(function (li) {
+          li.setAttribute('data-stx-file', String(i + 1));
+          list.appendChild(first.importNode(li, true));
+        });
+      }
+    }
+
+    /* The page prints its own "Total Orders: 13". After a merge that number
+       describes only the first file, and a wrong count on a packing document is
+       worth more than a rule about not touching text - a packer reading 13 while
+       looking at 40 will believe the tool lost their work. */
+    var total = first.querySelectorAll('li.bg-white').length;
+    Array.prototype.forEach.call(first.querySelectorAll('h5'), function (h) {
+      if (/Total Orders\s*:/i.test(h.textContent)) {
+        h.textContent = h.textContent.replace(/Total Orders\s*:\s*\d+/i, 'Total Orders: ' + total);
+      }
+    });
+
+    return first;
   }
 
-  function save(html, name) {
+  function open_(files) {
+    drop.classList.add('busy');
+    var label = files.length === 1 ? files[0].name
+                                   : files.length + ' pack lists';
+
+    // Read the tool out BEFORE the swap: the element holding it is part of this
+    // document and is about to be replaced.
+    var toolJs = bundle();
+
+    // DOMParser builds the pack list exactly as written, with no parser state to
+    // get wrong. Scripts it creates are inert by design, which is what lets the
+    // page's own scripts be re-run deliberately below.
+    var parsed = merge(files);
+    document.documentElement.replaceWith(document.importNode(parsed.documentElement, true));
+    document.title = label + ' — Speak Tool';
+
+    // The pack list defines copyText() and addCancelNote(), used by onclick
+    // handlers all over the page. A script element produced by DOMParser never
+    // runs, so each one is re-created as a live element. Skipped, and the SKU
+    // copy buttons on the page would throw.
+    var old = document.querySelectorAll('script');
+    for (var i = 0; i < old.length; i++) {
+      var o = old[i], n = document.createElement('script');
+      for (var a = 0; a < o.attributes.length; a++) {
+        n.setAttribute(o.attributes[a].name, o.attributes[a].value);
+      }
+      n.textContent = o.textContent;
+      o.parentNode.replaceChild(n, o);
+    }
+
+    // Then the tool, last, so it reads a finished page.
+    var t = document.createElement('script');
+    t.textContent = toolJs;
+    document.body.appendChild(t);
+
+    addReopen();
+  }
+
+  /* "Open another" reloads this page, which is the chooser again. It mounts
+     inside the tool's own container so the pack list itself gains nothing. */
+  function addReopen() {
+    (function add() {
+      var r = document.getElementById('stx-root');
+      if (!r) { setTimeout(add, 120); return; }
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = '← Open another';
+      b.style.cssText = 'position:fixed;top:10px;right:12px;z-index:2147483045;' +
+        'background:rgba(12,17,22,.92);color:#E9EFF4;border:1px solid #3A4956;' +
+        'border-radius:6px;padding:7px 13px;font:500 13.5px -apple-system,' +
+        'BlinkMacSystemFont,sans-serif;cursor:pointer';
+      b.onclick = function () { location.reload(); };
+      r.appendChild(b);
+    })();
+  }
+
+  function save(files) {
+    var merged = merge(files);
+    var html = '<!DOCTYPE html>' + merged.documentElement.outerHTML;
+    var name = files.length === 1 ? files[0].name : 'packlists-' + files.length;
     var a = document.createElement('a');
     a.href = blobUrl(prepare(html));
     a.download = name.replace(/\.html?$/i, '') + '.speak.html';
@@ -209,10 +343,10 @@
   drop.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); }
   });
-  file.addEventListener('change', function () { readFile(file.files[0], open_); });
+  file.addEventListener('change', function () { readFiles(file.files, open_); });
 
   saveBtn.addEventListener('click', function () { file2.click(); });
-  file2.addEventListener('change', function () { readFile(file2.files[0], save); });
+  file2.addEventListener('change', function () { readFiles(file2.files, save); });
 
   ['dragenter', 'dragover'].forEach(function (t) {
     drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('hot'); });
@@ -221,7 +355,7 @@
     drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('hot'); });
   });
   drop.addEventListener('drop', function (e) {
-    readFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0], open_);
+    if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files, open_);
   });
   // Dropping outside the target must not navigate the browser away from the tool.
   window.addEventListener('dragover', function (e) { e.preventDefault(); });

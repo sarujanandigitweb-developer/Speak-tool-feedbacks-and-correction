@@ -1627,22 +1627,6 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         }, delay || 250);
       }
 
-      // Clears the recogniser's accumulated audio after a command has fired.
-      //
-      // Unit 4 does this as  recognition.stop(); recognition.start();  - but
-      // stop() is asynchronous, so its start() throws InvalidStateError and only
-      // works because onend restarts things a moment later anyway. We call stop()
-      // alone and let onend do the restart, which is the same effect without the
-      // exception.
-      //
-      // Needed because the mic no longer closes during speech: without a flush
-      // the tool's own words stay in the buffer and get merged into the NEXT
-      // result too, so one "next" could match twice.
-      function micFlush() {
-        if (!recognition || !micRunning) return;
-        try { recognition.stop(); } catch (e) { console.warn("micFlush:", e && e.message); }
-      }
-
       // These two are still called by speakLine() and togglePause(). They are
       // deliberately kept as no-ops on the microphone itself: the speech code is
       // outside the scope of this change, and the whole point of the fix is that
@@ -1729,40 +1713,15 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         { action: "postcode", re: /\bpost ?code\b/ }
       ];
 
-      // Finds the command the packer just said inside a transcript that may also
-      // contain the tool's own speech.
-      //
-      // THE BUG THIS FIXES: the old version rejected any transcript longer than
-      // five words. That was correct while the microphone was closed during
-      // speech - a transcript could then only be what the packer said. Now that
-      // the mic stays open (see the header note), Chrome merges the tool's speech
-      // and the packer's command into ONE final result:
-      //
-      //   "s t 6 4 b22 8 wats 6 post code w 3 6 h h next"      <- 16 words
-      //
-      // ...so every command was thrown away at the word-count check. The packer
-      // saw "Heard: next" and nothing happened. Unit 4 never had this because it
-      // uses plain .includes() with no length guard at all.
-      //
-      // The word count is gone. Word-BOUNDARY matching is kept, so "restarting"
-      // or "backing" still do not fire. When several command words appear, the
-      // LAST one wins: the tool's speech is always transcribed before whatever
-      // the packer says on top of it, so the latest match is the live command.
       function matchCommand(text) {
+        // Guard against arbitrary sentences that merely contain a keyword.
         if (!text) return null;
-
-        // "start again" is one instruction, not "start" followed by "again".
-        // Collapsing it first keeps it resolving to restart under last-match-wins.
-        text = text.replace(/\bstart again\b/g, "restart");
-
-        var best = null, bestAt = -1;
+        var words = text.split(" ");
+        if (words.length > 5) return null;
         for (var i = 0; i < VOICE_COMMANDS.length; i++) {
-          var re = new RegExp(VOICE_COMMANDS[i].re.source, "g");
-          var m, at = -1;
-          while ((m = re.exec(text)) !== null) at = m.index;
-          if (at > bestAt) { bestAt = at; best = VOICE_COMMANDS[i].action; }
+          if (VOICE_COMMANDS[i].re.test(text)) return VOICE_COMMANDS[i].action;
         }
-        return best;
+        return null;
       }
 
       if (!SpeechRecognition) {
@@ -1794,10 +1753,8 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
             voiceFeedbackDiv.innerText = "Heard: " + text;
 
             var action = matchCommand(text);
-            // Logged either way: on the packing floor the only way to tell
-            // "not heard" from "heard but not matched" is to see this line.
-            if (!action) { console.log("  no command in transcript"); continue; }
-            if (isSelfEcho(action)) { console.log("  ignored '" + action + "' - tool is speaking"); continue; }
+            if (!action) continue;
+            if (isSelfEcho(action)) continue;   // the tool said it, not the packer
 
             // De-duplicate: the same command inside 1s is one utterance,
             // not two. Different commands are never blocked.
@@ -1812,7 +1769,6 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
             setMicState("processing", "Heard \u201c" + action + "\u201d");
             showLoading(action);
             controlSpeech(action);      // the SAME handler the buttons use
-            micFlush();                 // drop the audio this command came from
           }
         };
 

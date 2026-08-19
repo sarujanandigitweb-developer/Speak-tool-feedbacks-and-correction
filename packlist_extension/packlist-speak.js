@@ -1,7 +1,7 @@
 /* Speak Tool — Order Pack List extension  (single-file build)
  *
  * Add ONE line before </body> of the pack list page:
- *     <script src="packlist-speak.js"></script>
+ *     <script src="packlist-speak.js"><\/script>
  *
  * It adds a fixed control bar and a collection dialog. It does not change,
  * remove or restyle any existing element on the page.
@@ -112,11 +112,41 @@ window.REF = {
   /* ---- packing priority ---------------------------------------------------
      Conditional: which ranking applies depends on whether the order holds a
      Rectangle Ceiling Rose. Rule given 2026-08-14/17. */
+  /* Ranking as stated by the business 2026-08-19, and unchanged since
+     2026-08-14. Bulb is THIRD, ahead of Other.
+
+       Type 1 - a Rectangle Ceiling Rose is in the order
+         Rect Ceiling Rose 1 · Lampshade 2 · Bulb 3 · Other 4
+         (a plain ceiling rose is not called out here, so it packs with Other)
+
+       Type 2 - no Rectangle Ceiling Rose
+         Lampshade 1 · Ceiling Rose 2 · Bulb 3 · Other 4
+
+     Type 3 - neither a Lampshade nor a Ceiling Rose - is handled in
+     applyPriority(): no ranking is applied at all. */
   var RANK_RECT = {RECT_ROSE:1, SHADE:2, BULB:3, ROSE:4, OTHER:4};
   var RANK_PLAIN= {SHADE:1, ROSE:2, BULB:3, OTHER:4};
   function rank(type, hasRect){ return (hasRect?RANK_RECT:RANK_PLAIN)[type] || 4; }
 
+  /* TYPE 3 - the branch that was missing.
+     "If there is no Lampshade and no Ceiling Rose, do not apply any filter.
+      Speak in the exact order in which the items appear in the order."
+
+     Type 2's ranking used to be applied to EVERY order without a rect rose,
+     including orders holding no lampshade and no rose either. Bulb (3) then
+     jumped ahead of Other (4), so a free bulb was called out before the fitting
+     it goes into - order s652qq spoke "Free Bulb" then "Pipe Light Black".
+     There is nothing in such an order to rank against, so the source order
+     stands, whether that is Holder-Bulb-Other or Bulb-Holder-Other.
+     Confirmed 2026-08-19. */
+  function hasPriorityAnchor(lines){
+    return lines.some(function(l){
+      return l.type==='RECT_ROSE' || l.type==='SHADE' || l.type==='ROSE';
+    });
+  }
+
   function applyPriority(lines){
+    if (!hasPriorityAnchor(lines)) return lines;          // branch 3
     var hasRect = lines.some(function(l){ return l.type==='RECT_ROSE'; });
     return lines
       .map(function(l,i){ return {l:l, i:i, r:rank(l.type,hasRect)}; })
@@ -456,6 +486,7 @@ window.REF = {
   w.__stxLoaded = true;
 
   var STX = w.STX = {
+    debug: false,             // STX.debug = true -> every mic event in the console
     highlight: true,          // outline the order being packed
     zoom: 'auto',             // 'auto' | 'own' | 'native' | 'off' - see zoomFor()
     listenWhileSpeaking: true,// hear "next" even while the tool is talking
@@ -464,6 +495,7 @@ window.REF = {
 
   /* ---------------------------------------------------------------- state */
   var ORDERS = [], QUEUE = [], index = 0, segIndex = 0;
+  var filesMerged = 0;           // how many pack lists this page was built from
   var synth = w.speechSynthesis;
   var voices = [], selectedVoice = null, speechRate = 0.7;
   var paused = false, speechToken = 0;
@@ -676,6 +708,18 @@ window.REF = {
     '#stx-zoom-x{position:absolute;top:6px;right:8px;border:0;background:transparent;',
       'font-size:22px;line-height:1;color:#6B7784;cursor:pointer;padding:4px 8px}',
     '#stx-zoom-x:hover{color:#14181D}',
+    /* Start card. Deliberately in the middle of the screen and hard to miss:
+       the packer must not stand waiting for a voice that is never coming. */
+    '#stx-start{position:fixed;inset:0;z-index:2147483010;background:rgba(10,15,20,.72);',
+      'display:flex;align-items:center;justify-content:center;padding:24px}',
+    '#stx-start-box{background:#12181F;border:1px solid #3A4A5E;border-radius:14px;',
+      'padding:30px 34px;text-align:center;max-width:440px;box-shadow:0 18px 50px rgba(0,0,0,.55)}',
+    '#stx-start-t{margin:0 0 8px;font-size:23px;font-weight:700;color:#EAF0F5}',
+    '#stx-start-s{margin:0 0 22px;font-size:14.5px;color:#8FA3B5;line-height:1.5}',
+    '#stx-start-b{background:#0F6E76;color:#fff;border:0;border-radius:9px;',
+      'padding:15px 34px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit}',
+    '#stx-start-b:hover{background:#12858F}',
+    '#stx-start-b:focus-visible{outline:3px solid #4FB0C6;outline-offset:3px}',
     '@media (prefers-reduced-motion:reduce){#stx-mic .stx-dot{animation:none}}'
   ].join('');
 
@@ -742,6 +786,7 @@ window.REF = {
       var b = ev.target.closest('button[data-act]');
       if (!b) return;
       var a = b.getAttribute('data-act');
+      hideStart();                    // any press is the gesture the browser wanted
       if (a === 'pause') togglePause();
       else if (a === 'zoom') toggleZoom();
       else if (a === 'settings') { var sp = $('stx-set'); if (sp) sp.classList.toggle('on'); }
@@ -885,6 +930,46 @@ window.REF = {
   }
 
   /* =========================================================================
+     START — the one click a browser insists on
+     =========================================================================
+     Chrome will not play speech until the page has had a user gesture. A pack
+     list opened by navigation has had none, so the very first line was accepted
+     by speechSynthesis and then silently dropped: no error, no sound, and the
+     packer is looking at order 1 hearing nothing.
+
+     So the tool asks. It still TRIES to speak on load - where the browser allows
+     it, nothing is shown - and only if no audio actually began does this card
+     appear. Pressing it is the gesture, and the first item is spoken. */
+  var spoken = false;
+
+  function showStart() {
+    if ($('stx-start') || spoken) return;
+    var c = d.createElement('div');
+    c.id = 'stx-start';
+    c.innerHTML =
+      '<div id="stx-start-box" role="dialog" aria-label="Start packing">' +
+        '<p id="stx-start-t">Ready to pack</p>' +
+        '<p id="stx-start-s">Order 1 of ' + ORDERS.length + ' is loaded. ' +
+        'Chrome needs one press before it can speak.</p>' +
+        '<button type="button" id="stx-start-b">\u25B6 Start packing</button>' +
+      '</div>';
+    mount(c);
+    var b = $('stx-start-b');
+    b.addEventListener('click', function () {
+      hideStart();
+      index = 0; segIndex = 0;
+      render();
+      speakCurrent();          // this click IS the gesture, so it will be heard
+    });
+    b.focus();
+  }
+
+  function hideStart() {
+    var c = $('stx-start');
+    if (c) c.parentNode.removeChild(c);
+  }
+
+  /* =========================================================================
      MOVING THROUGH THE PAGE
      ========================================================================= */
   var lastActive = null;
@@ -919,9 +1004,19 @@ window.REF = {
     }
 
     var segs = segments();
+
+    // When several pack lists were merged into one view, say which one this
+    // order came from. The loader tags each row with data-stx-file; a single
+    // pack list carries no tag and nothing extra is shown.
+    var fileTag = '';
+    if (e.kind === 'order' && e.order.node && filesMerged > 1) {
+      var f = e.order.node.getAttribute('data-stx-file');
+      if (f) fileTag = '  ·  file ' + f;
+    }
+
     $('stx-pos').textContent =
       (e.kind === 'collection' ? 'Collection' : 'Order ' + (e.orderIndex + 1) + ' of ' + ORDERS.length) +
-      '  ·  Item ' + (segIndex + 1) + ' of ' + Math.max(1, segs.length);
+      '  ·  Item ' + (segIndex + 1) + ' of ' + Math.max(1, segs.length) + fileTag;
     $('stx-say').textContent = segs[segIndex] ? segs[segIndex].say : '';
 
     // The picture of the component being spoken, opened by itself. A collection
@@ -935,7 +1030,19 @@ window.REF = {
   /* =========================================================================
      CONTROLS — one handler for buttons, keyboard and voice alike
      ========================================================================= */
+  /* Re-entrancy guard. nav() changes the position, redraws and starts speech;
+     a second call arriving inside that window would leave the panel, the zoom
+     and the voice describing different components - which is what "the wrong
+     product is spoken" looks like from the floor. */
+  var navBusy = false;
+
   function nav(action) {
+    if (navBusy) return;
+    navBusy = true;
+    try { navRun(action); } finally { navBusy = false; }
+  }
+
+  function navRun(action) {
     var segs = segments();
     switch (action) {
       case 'next':
@@ -968,6 +1075,18 @@ window.REF = {
 
       case 'restart':
         index = 0; segIndex = 0; render(); speakCurrent();
+        break;
+
+      // Same two-way toggle the Pause button drives, so the verified resume in
+      // togglePause() applies to voice as well - including the case where
+      // Chrome reports resume() succeeded and produces no sound.
+      case 'pause':
+        if (!paused) togglePause();
+        break;
+
+      case 'resume':
+        if (paused) togglePause();
+        else speakCurrent();          // not paused - read the current item again
         break;
     }
   }
@@ -1071,15 +1190,28 @@ window.REF = {
     u.lang = 'en-US';
     u.rate = speechRate;
     if (selectedVoice) u.voice = selectedVoice;
+    // onstart is the only honest signal that audio really began. Chrome accepts
+    // speak() and silently drops it when the page has had no user gesture yet,
+    // reporting no error at all.
+    u.onstart = function () { spoken = true; hideStart(); };
     u.onend = function () { if (mine !== speechToken) return; micRelease(); if (done) done(); };
     u.onerror = function () { if (mine !== speechToken) return; micRelease(); if (done) done(); };
     synth.speak(u);
   }
 
+  /* One read of the position, used for BOTH the screen and the voice.
+     render() and speakCurrent() used to each take their own snapshot; anything
+     that changed segIndex between them showed one product and said another. */
   function speakCurrent() {
     var segs = segments();
     if (segIndex >= segs.length) segIndex = Math.max(0, segs.length - 1);
-    speak(segs[segIndex] ? segs[segIndex].say : '');
+    if (segIndex < 0) segIndex = 0;
+    var seg = segs[segIndex];
+    if (!seg) { speak(''); return; }
+    // The panel is re-stamped from the same segment that is about to be spoken,
+    // so the SKU on screen and the SKU in the ear cannot disagree.
+    $('stx-say').textContent = seg.say;
+    speak(seg.say);
   }
 
   function setPauseBtn(on) {
@@ -1116,29 +1248,85 @@ window.REF = {
   var SR = w.SpeechRecognition || w.webkitSpeechRecognition;
   var rec = null, micOffByUser = false, micRunning = false, micMuted = false;
   var micFatal = '', micTimer = null, lastCmd = '', lastCmdAt = 0, micWatchdog = null;
+  var micBootAt = Date.now();    // when the tool started trying
+  var micEverRan = false;        // has recognition started even once?
+  var micAlive = 0;              // when the recogniser last proved it was awake
+  var micHealth = null;
+  // A recogniser that has delivered nothing for this long is treated as dead.
+  // 15s was too patient - that is a long time to stand repeating a word.
+  var MIC_SILENT_LIMIT_MS = 8000;
 
   /* The near-misses matter as much as the words themselves. Chrome's recogniser
      is trained on conversation, not on a warehouse with a headset and machine
      noise, and it returns a small, repeatable set of wrong words for each
      command - "next" comes back as text / nest / necks / neck constantly.
      Accepting those costs nothing: none of them means anything else here. */
+  /* WHAT COUNTS AS A COMMAND — deliberately narrow again.
+     ------------------------------------------------------
+     I had widened this to catch Chrome's mis-hearings: text, net, neck, bag,
+     buck, wait, stop, again. That was a mistake and it is the main reason
+     accuracy got worse rather than better. Those are ordinary words. On a
+     packing floor someone says "stop", "wait" or "back" in conversation
+     constantly, and every one of them was moving the queue or pausing the tool -
+     which reads exactly like "the microphone went wrong".
+
+     Only words that are near-useless in normal talk are accepted now. "nest"
+     and "necks" stay because Chrome returns them for "next" and nobody says
+     them near a bench; "text", "net" and "neck" go, because people do. */
+  /* ===================================================================
+     COMMAND MATCHING — ported from the Unit 4 Speak Tool, which works.
+     ===================================================================
+     Unit 4 has never had the "it stops hearing me" problem, and the reason is
+     one line it does NOT have: a word-count limit.
+
+     Because the microphone stays open while the tool talks, Chrome merges the
+     tool's own speech and the packer's command into ONE final transcript:
+
+       "s t 6 4 b22 8 wats 6 post code w 3 6 h h next"      <- 16 words
+
+     This build rejected anything over five words, so every command spoken
+     during an utterance was thrown away. The packer saw the words arrive and
+     nothing happened. Unit 4 matches on the whole string with no length guard
+     at all, and takes the LAST command word found - because the tool's speech
+     is always transcribed before whatever the packer says on top of it, so the
+     latest match is the live command. */
   var COMMANDS = [
-    { a: 'restart',  re: /\b(restart|start again|start over)\b/ },
-    { a: 'next',     re: /\b(next|nest|necks|neck|text|nexus|net|forward)\b|\bgo on\b|\bgo next\b|\bnext one\b/ },
-    { a: 'back',     re: /\b(back|bag|buck|previous|prev)\b/ },
-    { a: 'repeat',   re: /\b(repeat|repeated|respeak|again|replay|read it)\b/ },
-    { a: 'postcode', re: /\bpost ?code\b|\bpostal code\b|\bpost card\b/ }
+    { a: 'restart',  re: /\b(restart|start)\b/ },
+    { a: 'next',     re: /\b(next|forward)\b|\bgo on\b|\bgo next\b/ },
+    { a: 'back',     re: /\b(back|previous|prev)\b/ },
+    { a: 'repeat',   re: /\b(respeak|again|repeat)\b/ },
+    { a: 'postcode', re: /\bpost ?code\b/ },
+    { a: 'pause',    re: /\bpause\b/ },
+    { a: 'resume',   re: /\b(resume|unpause)\b/ }
   ];
 
   function normalise(t) {
     return String(t || '').toLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
+  /* The tool speaks exactly one command word out loud - ":Post Code:" - so that
+     is the only one suppressed, and only while audio is actually playing.
+     next, back, repeat and restart stay live at all times, which is the whole
+     point of listening through speech. */
+  function isSelfEcho(action) {
+    return action === 'postcode' && synth.speaking;
+  }
+
   function matchCommand(t) {
     if (!t) return null;
-    if (t.split(' ').length > 5) return null;       // a sentence is not a command
-    for (var i = 0; i < COMMANDS.length; i++) if (COMMANDS[i].re.test(t)) return COMMANDS[i].a;
-    return null;
+
+    // "start again" is one instruction, not "start" then "again". Collapsed
+    // first so it resolves to restart under last-match-wins.
+    t = t.replace(/\bstart again\b/g, 'restart');
+
+    var best = null, bestAt = -1;
+    for (var i = 0; i < COMMANDS.length; i++) {
+      var re = new RegExp(COMMANDS[i].re.source, 'g');
+      var m, at = -1;
+      while ((m = re.exec(t)) !== null) at = m.index;
+      if (at > bestAt) { bestAt = at; best = COMMANDS[i].a; }
+    }
+    return best;
   }
 
   // One state at a time, named the same way the sheet build names them, so a
@@ -1154,10 +1342,23 @@ window.REF = {
     else if (micMuted)       { state = 'speaking';  text = 'Speaking'; }
     else if (micHearing)     { state = 'hearing';   text = 'Hearing you'; }
     else if (micRunning)     { state = 'listening'; text = 'Listening'; }
+    else if (!micEverRan && Date.now() - micBootAt > 3000) {
+      // Only when recognition has NEVER started. micRunning is briefly false on
+      // every ordinary restart, and showing "Allow the microphone" then made a
+      // working tool look broken several times a minute.
+      state = 'paused';
+      text = onFileUrl() ? 'Allow the mic — see note' : 'Allow the microphone';
+    }
     else                     { state = '';          text = 'Starting'; }
     el.className = state;
     t.textContent = text;
+    el.title = onFileUrl()
+      ? 'This page is open from a file, so Chrome asks for the microphone every '
+        + 'time and cannot remember the answer. Serve it over http to be asked once.'
+      : 'Microphone level and status';
   }
+
+  function onFileUrl() { return w.location.protocol === 'file:'; }
 
   // Shows the command that was understood, then drops back to the live state.
   function micHeard(action) {
@@ -1166,11 +1367,63 @@ window.REF = {
     setTimeout(micUI, 900);
   }
 
+  /* micMuted is NO LONGER a reason not to start.
+     While the tool speaks, recognition is meant to keep running - that is the
+     whole point of listening through speech. But micStart() still refused to
+     start when micMuted was set, and onend refused to schedule a restart for
+     the same reason. So if the recogniser ended during an utterance - Chrome's
+     own idle timeout, or a no-speech - nothing brought it back until the 45s
+     speech watchdog fired. That is the "I said Next ten times and nothing
+     happened" report. */
   function micStart() {
-    if (!rec || micOffByUser || micFatal || micMuted || micRunning) return;
-    try { rec.start(); } catch (e) { /* already starting; onend will retry */ }
+    if (!rec || micOffByUser || micFatal || micRunning) return;
+    try {
+      rec.start();
+      micAlive = Date.now();
+    } catch (e) {
+      // "already started" while micRunning says otherwise means the two have
+      // drifted apart. Cycle it rather than swallowing the error and waiting
+      // for an onend that may never come.
+      micCycle();
+    }
   }
-  function micStop() { if (rec && micRunning) { try { rec.stop(); } catch (e) {} } }
+  function micStop() { if (rec) { try { rec.stop(); } catch (e) {} } }
+
+  /* Clears the recogniser's accumulated audio after a command has fired.
+     Needed because the microphone no longer closes while the tool speaks:
+     without a flush the tool's own words stay in the buffer and are merged into
+     the NEXT result as well, so one "next" could match twice. stop() is enough -
+     onend restarts it 120ms later. */
+  function micFlush() {
+    if (!rec || !micRunning) return;
+    try { rec.stop(); } catch (e) {}
+  }
+
+  /* Force a full stop-then-start. The only reliable way out of a recogniser
+     that reports one state and behaves as another. */
+  function micCycle() {
+    if (!rec || micOffByUser || micFatal) return;
+    try { rec.abort ? rec.abort() : rec.stop(); } catch (e) {}
+    micRunning = false;
+    micHearing = false;
+    micLater(300);
+  }
+  /* A LONG RECOGNITION SESSION GOES DOWNHILL.
+     Chrome's continuous recognition is noticeably worse after a few minutes
+     than it is in the first thirty seconds - the accumulated session drifts.
+     That is the "it works at the start and gets unreliable later" report, and
+     no amount of matching logic fixes it, because the words arriving are
+     already wrong.
+
+     A restart clears it. The trick is WHEN: restarting while the packer is
+     mid-word loses that word, which is the mistake the 8-second health check
+     made. So it is done immediately after a command has been acted on - the
+     packer is now reaching for the item and will not speak for a second or two.
+     That is the only genuinely safe gap in the cycle. */
+  /* No periodic session refresh is needed any more. micFlush() stops the
+     recogniser after every command and onend brings it straight back, so the
+     session is never more than a few commands old - which is what kept Unit 4
+     accurate over a long shift. */
   function micLater(ms) {
     if (micTimer) clearTimeout(micTimer);
     micTimer = setTimeout(function () { micTimer = null; micStart(); }, ms || 250);
@@ -1214,8 +1467,21 @@ window.REF = {
   function toggleMic() {
     if (micFatal) return;
     micOffByUser = !micOffByUser;
-    if (micOffByUser) { if (micTimer) { clearTimeout(micTimer); micTimer = null; } micStop(); }
-    else micLater(0);
+    if (micOffByUser) {
+      if (micTimer) { clearTimeout(micTimer); micTimer = null; }
+      micStop();
+      // Release the capture as well, so Chrome stops showing the tab as
+      // recording. Mic off should mean off, not off-but-still-listening.
+      if (meterStream) {
+        meterStream.getTracks().forEach(function (t) { t.stop(); });
+        meterStream = null;
+      }
+      paintLevel(0);
+    } else {
+      micAsked = false;          // may need the capture back for the meter
+      startMic();
+      micLater(0);
+    }
     micUI();
   }
 
@@ -1243,15 +1509,65 @@ window.REF = {
     }
   }
 
-  function startMeter() {
-    if (!STX.meter || meterCtx) return;
-    if (!w.navigator.mediaDevices || !w.navigator.mediaDevices.getUserMedia) return;
-    var AC = w.AudioContext || w.webkitAudioContext;
-    if (!AC) return;
+  /* ONE PERMISSION REQUEST, THEN BOTH USERS OF THE MICROPHONE.
+     -----------------------------------------------------------
+     Two things want the microphone: recognition, and the level meter. Asking
+     twice is what produced repeated permission prompts, and two independent
+     captures is what produced the audio conflicts. getUserMedia is therefore
+     called EXACTLY ONCE, before recognition starts; the grant is per origin,
+     so recognition inherits it and never prompts again.
 
-    w.navigator.mediaDevices.getUserMedia({
+     If it is refused or unavailable, recognition still starts - the packer
+     loses the meter, not the commands.
+
+     A permission that keeps being asked for again on every load means the
+     origin cannot store one. file:// has the origin "null" and can never
+     remember a grant. Serve the page over http and it is asked once, ever. */
+  var micAsked = false;
+
+  /* RECOGNITION IS NEVER GATED ON THE METER.
+     An earlier version asked for the microphone stream first and started
+     recognition in the .then(). While Chrome's permission prompt sits open the
+     promise has not settled, so recognition had not started and the chip stayed
+     on "Starting"; if the packer dismissed the prompt instead of answering it,
+     the promise never settled at all and voice was dead for the whole session.
+     Commands are the critical function and the meter is a convenience, so the
+     order is now: recognition first, meter alongside. Both use the same
+     per-origin grant, so Chrome still asks once. */
+  function startMic() {
+    if (micAsked) return;
+    micAsked = true;
+
+    startRecognition();                 // first, and unconditionally
+
+    var md = w.navigator.mediaDevices;
+    if (!STX.meter || !md || !md.getUserMedia) return;
+
+    /* ON file:// THE METER IS NOT WORTH ITS PROMPT.
+       A file page has the origin "null", so Chrome cannot store a microphone
+       grant against it and asks again every single time anything opens the
+       microphone. That makes the meter a SECOND source of the prompt, on top of
+       recognition's own - and the meter is only a convenience. Skipped there, so
+       the packer answers one dialog instead of two.
+       Nothing about recognition or matching changes; on http and https the meter
+       behaves exactly as before. */
+    if (onFileUrl()) {
+      var lv = $('stx-level');
+      if (lv) lv.title = 'Level meter needs the page served over http';
+      return;
+    }
+    md.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    }).then(function (stream) {
+    }).then(attachMeter).catch(function (e) {
+      // Losing the meter costs a picture of the input, not the commands.
+      console.warn('[Speak Tool] level meter unavailable:', e && e.name);
+    });
+  }
+
+  function attachMeter(stream) {
+    var AC = w.AudioContext || w.webkitAudioContext;
+    if (!AC || meterCtx) return;
+    (function (stream) {
       meterStream = stream;
       meterCtx = new AC();
       var an = meterCtx.createAnalyser();
@@ -1271,10 +1587,32 @@ window.REF = {
         if (w.requestAnimationFrame) w.requestAnimationFrame(tick);
         else setTimeout(tick, 60);
       })();
-    }).catch(function (e) {
-      // Not fatal: the commands still work, there is just no picture of them.
-      console.warn('[Speak Tool] level meter unavailable:', e && e.name);
-    });
+    })(stream);
+  }
+
+  /* HEALTH CHECK — the difference between "usually works" and "always works".
+     Chrome's recogniser can stop without firing onend, or accept start() and
+     never deliver a result. Nothing inside the API reports either. So its
+     liveness is checked from outside: every event stamps micAlive, and if
+     nothing has stamped it for MIC_SILENT_LIMIT_MS while it claims to be
+     running, it is force-cycled. A recogniser that is simply not running is
+     restarted immediately. */
+  /* SILENCE IS NOT A FAULT.
+     This used to abort and restart the recogniser after 8 seconds without an
+     event. But a packer picking items quietly for eight seconds is the normal
+     case, not a broken one - and the restart opened a dead window of several
+     hundred milliseconds, so a "next" spoken at that moment was simply lost.
+     That is what "it does not catch what I say immediately" was.
+
+     A recogniser that has genuinely stopped fires onend, and onend already
+     restarts it. All this needs to do is catch the case where it is NOT running
+     and no restart is pending. */
+  function startHealthCheck() {
+    if (micHealth) return;
+    micHealth = setInterval(function () {
+      if (micOffByUser || micFatal || !rec) return;
+      if (!micRunning && !micTimer) micLater(0);
+    }, 2000);
   }
 
   function startRecognition() {
@@ -1287,48 +1625,62 @@ window.REF = {
     // the word was heard and then thrown away. Acting on the interim makes it
     // respond as soon as it recognises the word. The 1-second de-duplicate below
     // stops the same command firing again when the final arrives.
-    rec.interimResults = true;
-    // Chrome ranks its guesses. "next" is regularly second or third behind a
-    // conversational word, so all of them are read, not just the top one.
-    rec.maxAlternatives = 5;
+    /* FINALS ONLY, ONE GUESS - exactly what Unit 4 uses.
+       Interim results and five alternatives were my addition, and they turned
+       half-heard words into commands. Chrome's final result with its top guess
+       is slower by a fraction of a second and far more likely to be what the
+       packer actually said. */
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
     rec.lang = 'en-US';
 
-    rec.onstart = function () { micRunning = true; micHearing = false; micUI(); };
+    rec.onstart = function () {
+      if (STX.debug) console.log('[mic] started');
+      micRunning = true; micHearing = false; micEverRan = true;
+      micAlive = Date.now();
+      micUI();
+    };
     // Real signal from the recognition API, not a simulated level meter: the dot
     // and the bars only move while Chrome says it is actually picking up speech.
     rec.onspeechstart = function () {
+      micAlive = Date.now();
       if (!micOffByUser && !micMuted) { micHearing = true; micUI(); }
     };
-    rec.onspeechend = function () { micHearing = false; micUI(); };
+    rec.onspeechend = function () { micAlive = Date.now(); micHearing = false; micUI(); };
 
     rec.onresult = function (ev) {
       if (micOffByUser) return;
+      micAlive = Date.now();
+
       for (var i = ev.resultIndex; i < ev.results.length; i++) {
-        var r = ev.results[i];
-        var a = null, heard = '';
-        // Every alternative, interim or final. The first one that is a command wins.
-        for (var k = 0; k < r.length && !a; k++) {
-          heard = normalise(r[k].transcript);
-          a = matchCommand(heard);
-        }
-        if (!a) continue;
+        if (!ev.results[i].isFinal) continue;
 
-        // The tool's own voice, coming back through the microphone. It says
-        // ":Post Code:" out loud, which is a command word, so what is being
-        // spoken right now is checked before acting. It never says next, back,
-        // repeat or restart, so those always get through.
-        if (micMuted && speakingNow && speakingNow.indexOf(heard) !== -1) continue;
+        var heard = normalise(ev.results[i][0].transcript);
+        if (STX.debug) console.log('[mic] heard:', heard);
 
+        var a = matchCommand(heard);
+        // Logged either way: on the floor the only way to tell "not heard" from
+        // "heard but not matched" is to see this line.
+        if (!a) { if (STX.debug) console.log('[mic]   no command in it'); continue; }
+        if (isSelfEcho(a)) { if (STX.debug) console.log('[mic]   ignored - tool is speaking'); continue; }
+
+        // One utterance is one command. Different commands are never blocked.
         var now = Date.now();
-        if (a === lastCmd && now - lastCmdAt < 1000) continue;   // one utterance, not two
+        if (a === lastCmd && now - lastCmdAt < 1000) {
+          if (STX.debug) console.log('[mic]   duplicate ignored');
+          continue;
+        }
         lastCmd = a; lastCmdAt = now;
+
         micHeard(a);
         nav(a);
+        micFlush();          // drop the audio this command came out of
       }
     };
 
     rec.onerror = function (ev) {
       var err = (ev && ev.error) || 'unknown';
+      if (STX.debug) console.log('[mic] error:', err);
       micRunning = false; micHearing = false;
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         // Chrome refuses microphone access on file:// no matter what the user
@@ -1343,8 +1695,13 @@ window.REF = {
     };
 
     rec.onend = function () {
+      if (STX.debug) console.log('[mic] ended');
       micRunning = false; micHearing = false; micUI();
-      if (!micOffByUser && !micFatal && !micMuted) micLater(250);
+      // Unit 4 behaviour: come straight back, every time. Only a fatal
+      // permission or hardware error ends the session. 120ms, not 250 - this
+      // runs after every command because of micFlush(), so it is in the path
+      // the packer feels.
+      if (!micOffByUser && !micFatal) micLater(120);
     };
 
     micStart();
@@ -1382,6 +1739,14 @@ window.REF = {
     }
 
     ORDERS = w.Engine.parseDoc(d, 'pack list');
+
+    // How many pack lists were merged into this page, if any.
+    var tags = {};
+    for (var fi = 0; fi < ORDERS.length; fi++) {
+      var t = ORDERS[fi].node && ORDERS[fi].node.getAttribute('data-stx-file');
+      if (t) tags[t] = 1;
+    }
+    filesMerged = Object.keys(tags).length;
     if (!ORDERS.length) {
       console.warn('[Speak Tool] no orders found on this page — is it a pack list?');
       return;
@@ -1401,11 +1766,15 @@ window.REF = {
 
     // getVoices() famously returns [] on the first call, and onvoiceschanged
     // never fires when the voices are already loaded. Try now, listen, and poll.
-    var spoke = false;
+    var tried = false;
     function ready() {
-      if (spoke) return;
-      spoke = true;
-      setTimeout(speakCurrent, 120);
+      if (tried) return;
+      tried = true;
+      setTimeout(function () {
+        speakCurrent();
+        // If no audio began, the browser blocked it. Ask for the one press.
+        setTimeout(function () { if (!spoken) showStart(); }, 700);
+      }, 120);
     }
     if (pickVoices()) ready();
     if (synth.onvoiceschanged !== undefined) {
@@ -1417,9 +1786,13 @@ window.REF = {
       if (++tries > 20) { clearInterval(poll); ready(); }
     }, 150);
 
-    startRecognition();
-    startMeter();
+    startMic();          // recognition first; the meter follows alongside
+    startHealthCheck();
     micUI();
+    // The health check only ticks every 2.5s, and the packer should not be
+    // looking at "Starting" for five seconds while an unanswered permission
+    // prompt sits on screen. One explicit repaint just past the threshold.
+    setTimeout(micUI, 3200);
   }
 
   // Three ways in, because one is not enough.

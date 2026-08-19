@@ -184,9 +184,49 @@ too, because none of them means anything else here:
 | **repeat** | repeated · respeak · again · replay · read it |
 | **postcode** | postal code · post card |
 | **restart** | start again · start over |
+| **pause** | paused · hold on · wait · stop |
+| **resume** | continue · carry on · go ahead · unpause |
 
 A phrase longer than five words is still ignored, so ordinary talk containing "next" does not
 move the queue.
+
+### Reliability — one action per phrase, and a recogniser that cannot stay dead
+
+Two defects were behind *"it skips a product"*, *"it speaks the wrong one"* and *"I say Next ten
+times and nothing happens"*. Both are fixed and both are tested.
+
+**A spoken phrase now causes exactly one action.** The old guard was *"the same command within
+1000 ms"* — a clock, not a phrase. Chrome emits interim results repeatedly while it refines its
+guess, and when those ran past a second the same *"next"* fired **twice**: two steps taken, the
+first product cut off mid-word and the second spoken. Chrome keeps one result index per phrase, so
+the index is now the phrase's identity and it is acted on once, however long Chrome takes.
+
+**The recogniser is restarted whether or not the tool is speaking.** `micStart()` refused to start
+while `micMuted` was set, and `onend` refused to schedule a restart for the same reason. So if
+recognition ended during an utterance — Chrome's idle timeout, or a no-speech — nothing revived it
+until the 45-second speech watchdog. That is the ten-unanswered-Nexts report.
+
+On top of that a **health check** runs every 2.5s. Every recognition event stamps a timestamp; if
+the recogniser claims to be running but has been silent for 15 seconds, it is force-cycled. Chrome
+can stop without firing `onend`, and nothing in the API reports it.
+
+| | |
+|---|---|
+| One "next", interims spanning 1.5s | **1** step |
+| Three separate "next" phrases | **3** steps |
+| Tool's own "post code" heard back | **0** steps |
+| Recogniser dies mid-utterance | revived |
+
+### One microphone permission, not two
+
+Recognition and the level meter both want the microphone. Asking twice is what produced repeated
+permission prompts, and two independent captures is what produced the audio conflicts.
+`getUserMedia` is now called **exactly once**, before recognition starts; the grant is per origin,
+so recognition inherits it. If it is refused, recognition still starts — you lose the meter, not the
+commands. Turning the mic off releases the capture, so Chrome stops showing the tab as recording.
+
+**If the prompt keeps coming back on every load, the origin cannot store a grant.** `file://` has
+the origin `null` and never can. Serve the page over http and it is asked once, ever.
 
 ### The microphone level meter
 
