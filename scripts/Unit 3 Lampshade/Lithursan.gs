@@ -1614,8 +1614,13 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         try {
           recognition.start();
         } catch (e) {
-          // "already started" - benign, onstart will follow or onend will retry
+          // "already started" - benign IF a session is genuinely still closing,
+          // because onend will follow and restart us. But when start() throws
+          // for any other reason neither onstart NOR onend ever fires, and the
+          // old code left nothing pending - the recogniser was dead for the
+          // whole session with no error shown. Always leave a retry booked.
           console.warn("recognition.start() ignored:", e && e.message);
+          micScheduleRestart(400);
         }
       }
 
@@ -1675,6 +1680,24 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
 
         navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+          // THE FIX FOR "the level meter moves but no command ever works".
+          //
+          // Reaching here PROVES the microphone is granted for this origin.
+          // recognition.start() runs before this, at parse time, and in this
+          // iframe Chrome refuses it with "not-allowed" before the packer has
+          // had a chance to answer the prompt. Nothing then cleared that
+          // verdict: micStart() returned immediately for ever and onend never
+          // rescheduled, so the recogniser stayed dead - while this meter, whose
+          // own prompt the packer DID allow, carried on drawing bars.
+          //
+          // The packer therefore saw a live microphone that ignored every word.
+          if (micFatalError === "waiting for permission" || micFatalError === "permission denied") {
+            console.log("Microphone granted after all - starting recognition.");
+            micFatalError = "";
+            micStart();
+            refreshMicUI();
+          }
+
           var Ctx = window.AudioContext || window.webkitAudioContext;
           if (!Ctx) return;
           var ctx = new Ctx();
@@ -1706,6 +1729,13 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         }).catch(function (e) {
           console.warn("Volume meter unavailable:", e && e.message);
           wrap.title = "Microphone level unavailable - " + (e && e.message ? e.message : "blocked");
+          // getUserMedia failed too, so the earlier "not-allowed" from
+          // recognition was a real refusal after all, not the iframe race.
+          // Say so plainly instead of leaving the chip on "waiting".
+          if (micFatalError === "waiting for permission") {
+            micFatalError = "permission denied";
+            refreshMicUI();
+          }
         });
       }
 
@@ -1822,7 +1852,17 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
           micRunning = false;
 
           if (err === "not-allowed" || err === "service-not-allowed") {
-            micFatalError = "permission denied";      // do not retry
+            // Not necessarily a real refusal. This dialog is served from a
+            // cross-origin iframe on a googleusercontent.com subdomain that
+            // Google REGENERATES each time the dialog opens, so the microphone
+            // is never already granted when this runs. In that state Chrome
+            // answers SpeechRecognition with "not-allowed" straight away rather
+            // than waiting for the prompt to be answered.
+            //
+            // So this verdict is provisional. startVolumeMeter() below opens its
+            // own getUserMedia; if THAT succeeds the microphone is granted after
+            // all, and it clears this and starts us listening. See the note there.
+            micFatalError = "waiting for permission";   // cleared by the meter
           } else if (err === "audio-capture") {
             micFatalError = "no microphone found";    // do not retry
           } else if (err === "no-speech" || err === "aborted") {
