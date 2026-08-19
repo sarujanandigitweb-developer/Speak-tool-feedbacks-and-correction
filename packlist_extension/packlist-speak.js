@@ -66,6 +66,11 @@ window.REF = {
     // consulted: 16 of 156 live rows were mis-filed as OTHER when it was, e.g.
     // LSGG200AR named "amber Amber". Scores 451/451 against the SOT.
     if (s.indexOf('LS')===0) return 'SHADE';
+    // WCWD ("v diamand") was added to the lampshade prefixes by the business
+    // 2026-08-19, so it ranks as a shade in the packing sort as well as being
+    // collected. Sits AFTER the rose test, exactly like the LS rule, and does
+    // NOT extend to the other WC* cages - only WCWD was named.
+    if (s.indexOf('WCWD')===0) return 'SHADE';
     if (s.indexOf('LD')===0) return 'BULB';
     return 'OTHER';
   }
@@ -120,12 +125,17 @@ window.REF = {
          (a plain ceiling rose is not called out here, so it packs with Other)
 
        Type 2 - no Rectangle Ceiling Rose
-         Lampshade 1 · Ceiling Rose 2 · Bulb 3 · Other 4
+         Lampshade 1 · Bulb 3 · Other 4 · plain Ceiling Rose = Other
+         Corrected 2026-08-19: the plain rose used to sit at 2, ahead of the
+         bulb. The business restated it as "Normal Ceiling Rose = Other type",
+         which also makes the two types agree - Type 1 already ranks it 4.
+         Rose and Other TIE, so the stable sort keeps them in pack list order.
+         Measured on the 13 live pack lists: 25 of 155 orders move.
 
      Type 3 - neither a Lampshade nor a Ceiling Rose - is handled in
      applyPriority(): no ranking is applied at all. */
   var RANK_RECT = {RECT_ROSE:1, SHADE:2, BULB:3, ROSE:4, OTHER:4};
-  var RANK_PLAIN= {SHADE:1, ROSE:2, BULB:3, OTHER:4};
+  var RANK_PLAIN= {SHADE:1, BULB:3, ROSE:4, OTHER:4};
   function rank(type, hasRect){ return (hasRect?RANK_RECT:RANK_PLAIN)[type] || 4; }
 
   /* TYPE 3 - the branch that was missing.
@@ -274,7 +284,7 @@ window.REF = {
   var MAX_COLLECTION = 15;
 
   var COLLECT_RUN_PREFIXES = ['LSBS','LSSS','LSWE','WCCY','LSCYRO','LSBG','LSCG',
-                              'LSFG','LSGD','LSGG','LSGL','WCB','WCD'];
+                              'LSFG','LSGD','LSGG','LSGL','WCB','WCD','WCWD'];
   var COLLECT_FULL_PREFIXES = ['LSCY2','LSDM','LSDO','LSEL','LSFT','LSHH','LSHM',
                                'LSLC','LSLT','LSMS','LSOL','LSRP','LSTF','LSTL',
                                'LSTM','LSUL','LSWD'];
@@ -351,6 +361,33 @@ window.REF = {
       return finish(c);
     }
 
+    /* A list-1 collection exists to save WALKS: one trip to the shelf serving a
+       run of consecutive orders. A run of ONE saves nothing - the packer is sent
+       to the shelf for that order's own shade, which they were going to fetch
+       anyway, and the card just gets in the way.
+
+       Ruled 2026-08-19: "if there is only one order and the next order is not
+       one of these types, do not mention or apply this special logic", read as
+       the SAME family in the next order (confirmed with the business the same
+       day, against the alternative of any list-1 family).
+
+       Measured on the 13 live pack lists: 16 of 20 list-1 cards disappear,
+       including the WCCYSP160GD2PK "2 / 15" card the packers reported. The four
+       that remain are genuine multi-order runs.
+
+       List 2 is untouched - "whole pack list" was never about runs. */
+    function runLength(oi, fam){
+      var n=0;
+      for (var fi=oi; fi<orders.length; fi++){
+        var carries = perOrder[fi].some(function(l){
+          return l.mode==='RUN' && l.family===fam;
+        });
+        if (!carries) break;
+        n++;
+      }
+      return n;
+    }
+
     // One batch, but each family walks only its OWN run of consecutive orders
     // and stops at the first order that does not carry it. Families short on the
     // same order share the one batch and the one 15 limit.
@@ -386,8 +423,28 @@ window.REF = {
         }
       });
 
+      // Drop any family whose run is a single order - see runLength() above.
+      // Done AFTER the pool test so a family the pool already covers never got
+      // this far, and BEFORE building so fill() is not asked for a batch we are
+      // about to discard (fill writes into pool; an unwanted write would starve
+      // a later, genuine run of the same shade).
+      runFamilies = runFamilies.filter(function(f){ return runLength(oi,f) >= 2; });
+      if (!runFamilies.length){
+        modeSeq = modeSeq.filter(function(m){ return m!=='RUN'; });
+      }
+
       var made=modeSeq.map(function(m){ return m==='FULL' ? buildFullBatch(oi) : buildRunBatch(oi, runFamilies); });
-      Object.keys(need).forEach(function(k){ pool[k]=(pool[k]||0)-need[k]; });
+      /* The pool is stock ALREADY on the trolley, so it cannot go below zero.
+         Before the run-of-one rule every collectible arrived via a batch, so a
+         plain subtraction never went negative. Now a suppressed family is
+         picked straight off the shelf with its own order and contributes
+         nothing to the trolley - without the clamp its count went to -1 and
+         stayed there, and the next genuine run of that shade was measured
+         against a debt it had already paid, producing a second card for stock
+         the packer was holding. */
+      Object.keys(need).forEach(function(k){
+        pool[k]=Math.max(0,(pool[k]||0)-need[k]);
+      });
       out.push(made);
     });
     return out;

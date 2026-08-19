@@ -66,11 +66,20 @@ function ppProductType(sku, name) {
   // LS-prefixed rose such as LSWD360BG ("360 Black gold inner celing rose")
   // is still a ROSE, not a shade.
   //
-  // Ruled 2026-08-14 and still true: the WC* wire cages (WCDCBM "diamand cage",
-  // WCBNRR "ballon cage", WCCYSP160GD "Glass Lamp Cage") are NOT lampshades.
-  // They only ever matched on the word "cage", and they carry no LS prefix, so
-  // this rule excludes them by construction.
+  // Ruled 2026-08-14: the WC* wire cages (WCDCBM "diamand cage", WCBNRR
+  // "ballon cage", WCCYSP160GD "Glass Lamp Cage") are NOT lampshades. They only
+  // ever matched on the word "cage", and they carry no LS prefix, so this rule
+  // excludes them by construction. WCWD was carved out of that ruling on
+  // 2026-08-19 - see the explicit test below.
   if (s.indexOf('LS') === 0) return 'SHADE';
+
+  // WCWD added to the lampshade prefixes by the business 2026-08-19: "consider
+  // WCWD as a Lampshade type wherever this logic is applied". Live SKUs are
+  // WCWDBM / WCWDRO / WCWDCH ("v diamand"), none of which are in the Lampshade
+  // SOT, so the size token stays blank - that is a data gap, not a rule.
+  // Placed AFTER the rose test so the LS/rose precedence is unchanged, and it
+  // does NOT extend to WCB / WCCY / WCD, which were not named.
+  if (s.indexOf('WCWD') === 0) return 'SHADE';
 
   if (s.indexOf('LD') === 0) return 'BULB';   // bulbs whose name omits "bulb"/"wats"
   return 'OTHER';
@@ -281,21 +290,22 @@ function ppProductImage(sku) {
 //      A plain ceiling rose is not called out here, so it packs with "Other".
 //
 //   2. Rectangle Ceiling Rose ABSENT:
-//        Lampshade -> other Ceiling Rose -> Bulb -> Other
+//        Lampshade -> Bulb -> Other, and a plain Ceiling Rose packs as "Other".
 //
 //   3. Neither applies -> normal packing order, untouched.
 //
 // Rule 3 needs no branch. When an order holds none of these categories every row
 // ranks the same, and a stable sort leaves the existing sequence exactly as it is.
 //
-// This REPLACES the earlier single fixed ranking, in which a plain ceiling rose
-// always sat with "Other". It now rises to second place, but only in orders that
-// have no Rectangle Ceiling Rose to outrank it.
-// Restated by the business 2026-08-19, unchanged since 2026-08-14. Bulb is
-// THIRD, ahead of Other. What changed is TYPE 3 below: an order with neither a
-// lampshade nor a ceiling rose is no longer ranked at all.
+// A plain ceiling rose packs with "Other" in BOTH types. It briefly sat at 2 in
+// type 2 (ahead of the bulb); the business corrected that on 2026-08-19 -
+// "Normal Ceiling Rose = Other type" - which also makes the two tables agree.
+// ROSE and OTHER tie at 4 and the sort is stable, so a rose keeps its place in
+// the pack list relative to the other accessories. Measured on the 13 live pack
+// lists: 25 of 155 orders move, all of them "rose steps behind the bulb".
+// Bulb is THIRD, ahead of Other, in both tables.
 var PP_RANK_WITH_RECT = { RECT_ROSE: 1, SHADE: 2, BULB: 3, ROSE: 4, OTHER: 4 };
-var PP_RANK_NO_RECT   = { SHADE: 1, ROSE: 2, BULB: 3, OTHER: 4 };
+var PP_RANK_NO_RECT   = { SHADE: 1, BULB: 3, ROSE: 4, OTHER: 4 };
 
 /**
  * @param {string} type      one of SHADE / RECT_ROSE / ROSE / BULB / OTHER
@@ -472,6 +482,8 @@ function ppSortCleanedSheetRows(sheet) {
 // NOTE - WCB, WCCY and WCD are cage shades and are collected here, but
 // ppProductType() still ranks them OTHER for the packing sort because that
 // classification was not part of this change. Flagged, not altered.
+// WCWD is the exception: added to this list 2026-08-19 AND ruled a lampshade
+// type, so it is the one WC* family that sorts as a shade.
 // ===========================================================================
 
 var PP_MAX_LAMPSHADE_COLLECTION = 15;
@@ -479,7 +491,7 @@ var PP_MAX_LAMPSHADE_COLLECTION = 15;
 // LIST 1 - collect across the run of consecutive orders needing the same family.
 var PP_COLLECT_RUN_PREFIXES = [
   'LSBS', 'LSSS', 'LSWE', 'WCCY', 'LSCYRO', 'LSBG', 'LSCG',
-  'LSFG', 'LSGD', 'LSGG', 'LSGL', 'WCB', 'WCD'
+  'LSFG', 'LSGD', 'LSGG', 'LSGL', 'WCB', 'WCD', 'WCWD'
 ];
 
 // LIST 2 - check the entire pack list.
@@ -711,6 +723,32 @@ function ppBuildPackingWorkflow(orders, maxPerBatch) {
     return finish(c);
   }
 
+  // A list-1 collection exists to save WALKS: one trip to the shelf serving a
+  // run of consecutive orders. A run of ONE saves nothing - the packer is sent
+  // to the shelf for that order's own shade, which they were fetching anyway,
+  // and the card only gets in the way.
+  //
+  // Ruled 2026-08-19: "if there is only one order and the next order is not one
+  // of these types, do not mention or apply this special logic", read as the
+  // SAME family in the next order (confirmed with the business the same day,
+  // against the alternative of any list-1 family).
+  //
+  // Measured on the 13 live pack lists: 16 of 20 list-1 cards disappear,
+  // including the WCCY "2 / 15" card the packers reported. LIST 2 is untouched -
+  // "whole pack list" was never about runs.
+  function runLength(oi, fam) {
+    var n = 0;
+    for (var fi = oi; fi < orders.length; fi++) {
+      var carries = false, all = perOrder[fi];
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].mode === 'RUN' && all[i].family === fam) { carries = true; break; }
+      }
+      if (!carries) break;
+      n++;
+    }
+    return n;
+  }
+
   // LIST 1 - one batch, but each family walks only its OWN run of consecutive
   // orders and stops at the first order that does not carry it. Two families
   // short on the same order share the one batch and the one 15 limit.
@@ -761,6 +799,24 @@ function ppBuildPackingWorkflow(orders, maxPerBatch) {
       }
     }
 
+    // Drop any family whose run is a single order - see runLength() above.
+    // AFTER the pool test, so a family the pool already covers never got here,
+    // and BEFORE building, so fill() is not asked for a batch we then discard
+    // (fill writes into pool; an unwanted write would starve a later, genuine
+    // run of the same shade).
+    var keptFamilies = [];
+    for (var rf = 0; rf < runFamilies.length; rf++) {
+      if (runLength(oi, runFamilies[rf]) >= 2) keptFamilies.push(runFamilies[rf]);
+    }
+    runFamilies = keptFamilies;
+    if (!runFamilies.length) {
+      var kept = [];
+      for (var ms = 0; ms < modeSeq.length; ms++) {
+        if (modeSeq[ms] !== 'RUN') kept.push(modeSeq[ms]);
+      }
+      modeSeq = kept;
+    }
+
     // Batches are created in the order the shortage first appears on this order,
     // which is packing-priority order, so the cards match the pick sequence.
     var collections = [];
@@ -768,7 +824,14 @@ function ppBuildPackingWorkflow(orders, maxPerBatch) {
       collections.push(modeSeq[mi] === 'FULL' ? buildFullBatch(oi) : buildRunBatch(oi, runFamilies));
     }
 
-    for (var k in need) pool[k] = (pool[k] || 0) - need[k];
+    // The pool is stock ALREADY on the trolley, so it cannot go below zero.
+    // Before the run-of-one rule every collectible arrived via a batch, so a
+    // plain subtraction never went negative. Now a suppressed family is picked
+    // straight off the shelf with its own order and contributes nothing to the
+    // trolley - without the clamp its count went to -1 and stayed there, and the
+    // next genuine run of that shade was measured against a debt it had already
+    // paid, producing a second card for stock the packer was holding.
+    for (var k in need) pool[k] = Math.max(0, (pool[k] || 0) - need[k]);
 
     steps.push({
       seq: steps.length + 1,

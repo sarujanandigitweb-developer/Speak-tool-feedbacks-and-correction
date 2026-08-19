@@ -94,15 +94,26 @@ if (tpl.indexOf('/*__BUNDLE__*/') === -1) {
  * file reports the closing tags as unbalanced. Base64 contains only
  * [A-Za-z0-9+/=], so there is nothing left for a parser or a linter to misread,
  * and no escaping rules to remember. */
-const inert = Buffer.from(out, 'utf8').toString('base64');
+/* Wrapped at 120 columns. Unwrapped this is one 520,000-character line, which
+ * every editor's HTML/JS language server gives up on — VS Code draws the whole
+ * file red even though it parses and runs cleanly. The loader already strips
+ * whitespace before decoding (holder.textContent.replace(/\s+/g, '')), and the
+ * HTML spec's forgiving-base64 decode ignores ASCII whitespace anyway, so the
+ * line breaks cost nothing at runtime. */
+const inert = (Buffer.from(out, 'utf8').toString('base64').match(/.{1,120}/g) || []).join('\n');
 const loader = tpl.replace('/*__BUNDLE__*/', () => inert);
 const lDest = path.join(__dirname, 'speak-loader.html');
 fs.writeFileSync(lDest, loader);
 console.log(`built ${path.relative(root, lDest)}  ${(loader.length / 1024).toFixed(0)} KB  (bundle embedded)`);
 
-/* Speak-Tool.html — the same file under the name to hand to someone else.
+/* Speak-Tool.html — the same file under the name to hand to someone else, and
+ * the one that goes up to the Varmen AIOS dashboard.
  * Written by the build rather than copied by hand, because a second copy that
- * can go stale is exactly how the wrong file gets sent. */
-const sendDest = path.join(root, 'Speak-Tool.html');
+ * can go stale is exactly how the wrong file gets sent.
+ * Lives in packlist_upload/ — moved there 2026-08-19. The build creates the
+ * folder rather than assuming it, so a fresh clone does not fail here. */
+const sendDir = path.join(root, 'packlist_upload');
+fs.mkdirSync(sendDir, { recursive: true });
+const sendDest = path.join(sendDir, 'Speak-Tool.html');
 fs.writeFileSync(sendDest, loader);
 console.log(`built ${path.relative(root, sendDest)}  — the single file to send`);
