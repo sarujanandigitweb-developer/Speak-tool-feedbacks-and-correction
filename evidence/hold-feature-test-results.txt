@@ -1,0 +1,43 @@
+
+| Test | Result |
+|---|---|
+| Existing Next | PASS |
+| Existing Back | PASS |
+| Existing Back wrap | PASS |
+| Existing Repeat | PASS |
+| Existing Speak / segment stepping | PASS |
+| Existing Restart | PASS |
+| Existing voice commands intact | PASS |
+| Hold command matches | PASS |
+| Show Hold does NOT trigger Hold | PASS |
+| "holder" products never fire Hold | PASS |
+| Hold enters hold list | PASS |
+| Hold moves to next normal order + speaks it | PASS |
+| Held order remains unprocessed | PASS |
+| Normal completion detects held orders | PASS |
+| Show Hold shows only held orders | PASS |
+| Held completion clears list | PASS |
+| Final completion message | PASS |
+| Hold on first order | PASS |
+| Hold on last normal order | PASS |
+| Multiple holds | PASS |
+| Repeated Hold protection | PASS |
+| Show Hold with empty list | PASS |
+| Normal completion, no holds | PASS |
+| Next inside held sequence | PASS |
+| Back inside held sequence | PASS |
+| Held pass hands back to remaining normal orders | PASS |
+| Speak works after Show Hold | PASS |
+| Postcode works after Show Hold | PASS |
+| Voice commands work after Hold | PASS |
+| No false completion while holds remain | PASS |
+| Restart clears hold state | PASS |
+| Hold keeps a collection with its order | PASS |
+| Normal pass still plays collection cards | PASS |
+| Hold on a collection card holds its order | PASS |
+| Second hold from a collection card | PASS |
+| Show Hold plays ONLY orders, no collection cards | PASS |
+| Show Hold follows queue sequence | PASS |
+| Held pass completes after last held order | PASS |
+
+38 passed, 0 failed

@@ -1,0 +1,438 @@
+<title>Packer's Voice Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --paper:#FBFCFD;
+    --card:#FFFFFF;
+    --ink:#0E1418;
+    --ink-2:#4A5A66;
+    --ink-3:#7C8B96;
+    --line:#E2E8ED;
+    --line-2:#CFD8DF;
+    --teal:#0E6E77;
+    --teal-soft:#E3F0F1;
+    --amber:#8A5F12;
+    --amber-soft:#FAF0DC;
+    --green:#1B6E45;
+    --green-soft:#E4F1EA;
+    --chip:#F1F5F7;
+
+    --display:'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    --body:'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0B1116;
+      --card:#111A21;
+      --ink:#E9EFF3;
+      --ink-2:#A2B2BE;
+      --ink-3:#75868F;
+      --line:#1F2C35;
+      --line-2:#2C3D48;
+      --teal:#5FBCCB;
+      --teal-soft:#0E2A2F;
+      --amber:#E2B25E;
+      --amber-soft:#2C2313;
+      --green:#74CB9E;
+      --green-soft:#10281C;
+      --chip:#182430;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0B1116;
+    --card:#111A21;
+    --ink:#E9EFF3;
+    --ink-2:#A2B2BE;
+    --ink-3:#75868F;
+    --line:#1F2C35;
+    --line-2:#2C3D48;
+    --teal:#5FBCCB;
+    --teal-soft:#0E2A2F;
+    --amber:#E2B25E;
+    --amber-soft:#2C2313;
+    --green:#74CB9E;
+    --green-soft:#10281C;
+    --chip:#182430;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--body); font-size:17px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px; margin:0 auto; padding:48px 24px 80px; display:flex; flex-direction:column; gap:44px}
+
+  /* ---- masthead ---- */
+  header{display:flex; flex-direction:column; gap:10px}
+  .kicker{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--teal); font-weight:500;
+  }
+  h1{
+    font-family:var(--display); font-weight:700; font-size:clamp(34px,5.4vw,50px);
+    line-height:1.04; letter-spacing:-.02em; margin:0; text-wrap:balance;
+  }
+  .lede{font-size:19px; color:var(--ink-2); max-width:60ch; margin:0}
+
+  /* ---- sections ---- */
+  section{display:flex; flex-direction:column; gap:18px}
+  h2{
+    font-family:var(--display); font-weight:600; font-size:13px; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--ink-3); margin:0;
+    padding-bottom:9px; border-bottom:1px solid var(--line);
+  }
+
+  /* ---- command rows ---- */
+  .rows{display:flex; flex-direction:column; gap:2px}
+  .row{
+    display:grid; grid-template-columns:minmax(140px,178px) 1fr; gap:14px 22px;
+    align-items:start; padding:15px 16px; border-radius:5px; background:var(--card);
+    border:1px solid var(--line);
+  }
+  .row + .row{margin-top:6px}
+  @media (max-width:640px){ .row{grid-template-columns:1fr; gap:9px} }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--display); font-weight:600; font-size:17px; letter-spacing:-.005em;
+  }
+  .btn .g{font-size:15px; color:var(--ink-3); font-weight:500}
+  .phrases{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+  .p{
+    font-family:var(--mono); font-size:13.5px; padding:4px 9px; border-radius:4px;
+    background:var(--chip); color:var(--ink-2); white-space:nowrap;
+  }
+  .p.best{background:var(--teal-soft); color:var(--teal); font-weight:500}
+  .row.hold .p.best{background:var(--amber-soft); color:var(--amber)}
+  .note{grid-column:1/-1; font-size:14.5px; color:var(--ink-3); margin:0}
+  .row.hold{border-color:var(--line-2)}
+
+  /* ---- status legend ---- */
+  .legend{display:flex; flex-direction:column; gap:8px}
+  .leg{
+    display:grid; grid-template-columns:minmax(200px,250px) 1fr; gap:8px 22px;
+    align-items:center; padding:11px 4px; border-bottom:1px solid var(--line);
+  }
+  @media (max-width:640px){ .leg{grid-template-columns:1fr; gap:5px} }
+  .pill{
+    display:inline-block; font-family:var(--body); font-size:14px; font-weight:600;
+    padding:5px 13px; border-radius:99px; border:1px solid var(--line-2);
+    background:var(--chip); color:var(--ink-2); white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .pill.warn{border-color:var(--amber); background:var(--amber-soft); color:var(--amber)}
+  .pill.done{border-color:var(--green); background:var(--green-soft); color:var(--green)}
+  .leg p{margin:0; color:var(--ink-2); font-size:16px}
+
+  /* ---- help ---- */
+  .help{display:flex; flex-direction:column; gap:15px}
+  .help-item{display:flex; flex-direction:column; gap:3px}
+  .help-item strong{font-family:var(--display); font-weight:600; font-size:16.5px}
+  .help-item p{margin:0; color:var(--ink-2); max-width:66ch; font-size:16px}
+  code{
+    font-family:var(--mono); font-size:13.5px; background:var(--chip);
+    padding:2px 6px; border-radius:3px; color:var(--ink);
+  }
+  footer{
+    font-size:14px; color:var(--ink-3); border-top:1px solid var(--line); padding-top:18px;
+    display:flex; flex-wrap:wrap; gap:6px 18px; justify-content:space-between;
+  }
+
+  /* ---- handover: a different audience, so a different ground ---- */
+  .handover{
+    background:var(--chip); border:1px solid var(--line-2); border-radius:6px;
+    padding:30px 28px; gap:22px; margin-top:8px;
+  }
+  .handover h2{color:var(--ink-2); border-bottom-color:var(--line-2)}
+  .ho-lede{margin:0; color:var(--ink-2); max-width:66ch; font-size:16.5px}
+  .ho-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:22px}
+  .ho-block{display:flex; flex-direction:column; gap:10px}
+  .ho-block h3{
+    font-family:var(--display); font-weight:600; font-size:15px; margin:0; color:var(--ink);
+  }
+  .ho-block ul{margin:0; padding-left:19px; display:flex; flex-direction:column; gap:6px}
+  .ho-block li,.ho-block p{color:var(--ink-2); font-size:16px; margin:0; max-width:70ch}
+  .ho-files{margin:0; display:grid; grid-template-columns:1fr; gap:2px}
+  .ho-files dt{margin-top:7px}
+  .ho-files dt code{font-size:12.5px; background:transparent; padding:0; color:var(--ink)}
+  .ho-files dd{margin:0 0 0 0; color:var(--ink-3); font-size:14.5px}
+  .ho-cmd{font-size:15px; color:var(--ink-2); margin-top:6px!important}
+  .ho-tests{display:flex; flex-wrap:wrap; gap:10px}
+  .stat{
+    display:flex; flex-direction:column; gap:1px; padding:11px 16px; border-radius:5px;
+    background:var(--card); border:1px solid var(--line);
+  }
+  .stat .n{
+    font-family:var(--display); font-weight:700; font-size:21px; color:var(--green);
+    font-variant-numeric:tabular-nums; letter-spacing:-.01em;
+  }
+  .stat .l{font-size:13px; color:var(--ink-3)}
+
+  @media print{
+    body{background:#fff}
+    .wrap{padding:0; max-width:none; gap:26px}
+    .row,.pill{break-inside:avoid}
+    section{break-inside:avoid}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <span class="kicker">Speak Tool &middot; Order Pack List</span>
+    <h1>What to say while you pack</h1>
+    <p class="lede">Every command works as a button too. If the microphone mishears you, press the
+      button &mdash; nothing is lost. The words in colour are the ones that get recognised most reliably.</p>
+  </header>
+
+  <section>
+    <h2>Moving through the orders</h2>
+    <div class="rows">
+
+      <div class="row">
+        <span class="btn">&#9197; Next</span>
+        <div class="phrases">
+          <span class="p best">next</span><span class="p">forward</span>
+          <span class="p">go on</span><span class="p">go next</span>
+        </div>
+        <p class="note">Reads the next item in the order. On the last item, moves to the next order.</p>
+      </div>
+
+      <div class="row">
+        <span class="btn">&#9198; Back</span>
+        <div class="phrases">
+          <span class="p best">back</span><span class="p">previous</span><span class="p">prev</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="btn">&#128260; Repeat</span>
+        <div class="phrases">
+          <span class="p best">repeat</span><span class="p">again</span><span class="p">respeak</span>
+        </div>
+        <p class="note">Says the current item again. Does not move you on.</p>
+      </div>
+
+      <div class="row">
+        <span class="btn">&#128205; Postcode</span>
+        <div class="phrases">
+          <span class="p best">postcode</span><span class="p">post code</span>
+        </div>
+        <p class="note">Reads just the postcode, letter by letter, for the label. You stay on the same item.</p>
+      </div>
+
+      <div class="row">
+        <span class="btn">&#9208; Pause <span class="g">/ Resume</span></span>
+        <div class="phrases">
+          <span class="p best">pause</span><span class="p best">resume</span><span class="p">unpause</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="btn">&#128257; Restart</span>
+        <div class="phrases">
+          <span class="p best">restart</span><span class="p">start</span><span class="p">start again</span>
+        </div>
+        <p class="note">Back to the first order. Clears the hold list.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Setting an order aside</h2>
+    <div class="rows">
+
+      <div class="row hold">
+        <span class="btn">&#10003; Hold</span>
+        <div class="phrases">
+          <span class="p best">set aside</span><span class="p best">pack later</span>
+          <span class="p best">hold order</span>
+          <span class="p">hold</span><span class="p">keep</span><span class="p">park</span>
+          <span class="p">later</span><span class="p">skip</span><span class="p">pending</span>
+          <span class="p">wait</span><span class="p">aside</span>
+          <span class="p">skip this</span><span class="p">keep aside</span>
+          <span class="p">put it aside</span><span class="p">do later</span>
+          <span class="p">come back later</span><span class="p">park this order</span>
+        </div>
+        <p class="note">Puts this order on the hold list and moves straight to the next one. It is
+          <strong>not</strong> completed &mdash; you come back to it later.</p>
+      </div>
+
+      <div class="row hold">
+        <span class="btn">&#128203; Held</span>
+        <div class="phrases">
+          <span class="p best">show held orders</span><span class="p best">held list</span>
+          <span class="p">show hold</span><span class="p">held orders</span>
+          <span class="p">open held</span><span class="p">go to held</span>
+          <span class="p">view held list</span><span class="p">show pending</span>
+          <span class="p">pending orders</span><span class="p">show list</span>
+          <span class="p">list held items</span><span class="p">parked list</span>
+          <span class="p">skipped orders</span>
+        </div>
+        <p class="note">Plays only the held orders, in their normal order. Next, Back, Repeat and
+          Postcode all work the same inside the held list. Collection cards are skipped &mdash; you
+          already collected those shades on the first pass.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>The status badge on the bar</h2>
+    <div class="legend">
+      <div class="leg">
+        <span class="pill">Remaining 12 of 40</span>
+        <p>Twelve orders still to pack in this pass.</p>
+      </div>
+      <div class="leg">
+        <span class="pill warn">Remaining 12 of 40 &middot; Held 3</span>
+        <p>Twelve to go, and three are sitting on the hold list.</p>
+      </div>
+      <div class="leg">
+        <span class="pill warn">Normal done &middot; 3 held remaining</span>
+        <p>You have been through every normal order. Three held ones are still waiting &mdash; say
+          <em>show held orders</em> or press <strong>Held</strong>.</p>
+      </div>
+      <div class="leg">
+        <span class="pill warn">Held pass &middot; 2 of 3 left</span>
+        <p>You are working through the held orders now.</p>
+      </div>
+      <div class="leg">
+        <span class="pill done">&#10003; All orders completed</span>
+        <p>Everything is packed &mdash; normal <em>and</em> held. This never shows while anything is
+          still on hold.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>If it keeps mishearing you</h2>
+    <div class="help">
+
+      <div class="help-item">
+        <strong>1 &mdash; Set your listening accent first</strong>
+        <p>Press <strong>&#9881; Voice</strong> and set <strong>Listening accent</strong>. It arrives on
+          English&nbsp;(UK); most packers here get better results on
+          <strong>English&nbsp;(India&nbsp;/&nbsp;South&nbsp;Asia)</strong>. This one setting fixes more
+          than any change of wording. It is remembered, so you only pick it once.</p>
+      </div>
+
+      <div class="help-item">
+        <strong>2 &mdash; Use two words instead of one</strong>
+        <p>Short single words are the hardest thing for a microphone to place. <em>Set aside</em> is
+          recognised far more reliably than <em>hold</em>, and <em>show held orders</em> beats
+          <em>show hold</em>.</p>
+      </div>
+
+      <div class="help-item">
+        <strong>3 &mdash; Sound-alikes are already accepted</strong>
+        <p>The tool knows that <em>hold</em> often comes back as <em>gold</em>, <em>old</em>,
+          <em>cold</em> or <em>held</em>, and it treats those as Hold. It will not do this while the
+          tool is speaking, so a shade named <em>Rose&nbsp;Gold</em> can never hold your order by
+          accident.</p>
+      </div>
+
+      <div class="help-item">
+        <strong>4 &mdash; Check what it actually heard</strong>
+        <p>When a command is not recognised the bar shows <em>Heard &ldquo;&hellip;&rdquo; &mdash; not a
+          command</em>, so you can see whether the microphone caught you at all. For a full list, open
+          the browser console and type <code>STX.misses</code>.</p>
+      </div>
+
+      <div class="help-item">
+        <strong>The buttons never fail</strong>
+        <p>Voice is there to keep your hands on the stock. Every command on this card is also a button
+          on the bar, and the arrow keys work too: <code>&larr;</code> back, <code>&rarr;</code> next,
+          <code>&uarr;</code> repeat.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="handover">
+    <h2>Handover &mdash; for review, not for the bench</h2>
+
+    <p class="ho-lede">Everything above is what changed in this piece of work. This section is the
+      record behind it: what was built, which files moved, and what has and has not been proven.</p>
+
+    <div class="ho-grid">
+      <div class="ho-block">
+        <h3>What was added</h3>
+        <ul>
+          <li><strong>Hold</strong> &mdash; sets the current order aside and moves straight on. Not
+            completed, not deleted.</li>
+          <li><strong>Held</strong> &mdash; plays back only the held orders, in queue sequence, using
+            ordinary pack-order speech.</li>
+          <li><strong>Status badge</strong> &mdash; remaining count, held count, and a completion state
+            that cannot appear while anything is on hold.</li>
+          <li><strong>Listening accent</strong> &mdash; the microphone language is now a setting
+            (UK / South Asia / US) instead of being fixed to US English.</li>
+        </ul>
+      </div>
+
+      <div class="ho-block">
+        <h3>Files</h3>
+        <dl class="ho-files">
+          <dt><code>packlist_extension/src/speak-extension.js</code></dt>
+          <dd>The only file edited by hand &mdash; <strong>+380 / &minus;15</strong></dd>
+          <dt><code>packlist_extension/packlist-speak.js</code></dt>
+          <dd>Generated</dd>
+          <dt><code>packlist_extension/speak-loader.html</code></dt>
+          <dd>Generated</dd>
+          <dt><code>packlist_upload/Speak-Tool.html</code></dt>
+          <dd>Generated &mdash; the file to send</dd>
+        </dl>
+        <p class="ho-cmd">Rebuild the three generated files with<br>
+          <code>node packlist_extension/build.js</code></p>
+      </div>
+    </div>
+
+    <div class="ho-block">
+      <h3>Tests</h3>
+      <div class="ho-tests">
+        <div class="stat"><span class="n">38 / 38</span><span class="l">navigation &amp; hold behaviour</span></div>
+        <div class="stat"><span class="n">75 / 75</span><span class="l">voice command matching</span></div>
+        <div class="stat"><span class="n">9</span><span class="l">commands, 0 unmatched</span></div>
+      </div>
+      <p>Both suites run the real functions lifted out of the shipped bundle, not a re-implementation.
+        Harness and output are saved at <code>evidence/hold-feature-tests.js</code> and
+        <code>evidence/hold-feature-test-results.txt</code>; the discovery and conflict analysis is at
+        <code>evidence/hold-feature-discovery.md</code>.</p>
+    </div>
+
+    <div class="ho-block">
+      <h3>One behaviour change, declared</h3>
+      <p><strong>Next no longer loops at the end of the queue.</strong> It used to wrap back to the
+        first order forever, because the tool had no idea of being finished. A completion message is
+        impossible without a stopping point, so at the last order the wrap became a stop. Every step
+        before the last order is untouched, and Back keeps its wrap.</p>
+    </div>
+
+    <div class="ho-block">
+      <h3>Not yet done</h3>
+      <ul>
+        <li><strong>Not committed.</strong> Held for review before anything is pushed.</li>
+        <li><strong>Layout unverified on a station screen.</strong> The logic is tested; how the two new
+          buttons and the status badge sit in the bar at bench resolution needs a human look.</li>
+        <li><strong>Four <code>.bak-hold*</code> files</strong> are sitting in <code>src/</code> and
+          should be deleted once this is accepted.</li>
+        <li><strong>Only this tool was changed.</strong> The Google Sheet build
+          (<code>Lithursan.gs</code>) has its own separate, unfinished hold scaffolding and was left
+          alone.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>LEDSone &middot; Speak Tool voice reference</span>
+    <span>Verified against the shipped build &mdash; 9 commands, 0 unmatched</span>
+  </footer>
+
+</div>

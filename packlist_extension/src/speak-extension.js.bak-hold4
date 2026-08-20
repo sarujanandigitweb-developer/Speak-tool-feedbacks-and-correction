@@ -54,7 +54,6 @@
   var HELD = [];              // orderIndex values, in the order they were held
   var mode = 'normal';        // 'normal' | 'held' - which pass is running
   var normalPassDone = false; // the normal pass has reached its end
-  var allComplete = false;    // both passes finished - drives the status chip
   var filesMerged = 0;           // how many pack lists this page was built from
   var synth = w.speechSynthesis;
   var voices = [], selectedVoice = null, speechRate = 0.7;
@@ -173,10 +172,6 @@
     '#stx-bar button.stx-primary{background:#0F6E76;border-color:#0F6E76;font-weight:600}',
     '#stx-bar button.stx-primary:hover{background:#12858F;border-color:#12858F}',
     '#stx-pause.stx-on{background:#1F7A4D;border-color:#1F7A4D}',
-    '#stx-status{font-size:13px;font-weight:600;padding:4px 11px;border-radius:99px;white-space:nowrap;',
-    '  border:1px solid #3A4A5E;background:#1B2430;color:#B9C6D4}',
-    '#stx-status.stx-warn{border-color:#7A5A1F;background:#33280F;color:#F0C674}',
-    '#stx-status.stx-done{border-color:#1F7A4D;background:#12301F;color:#7FD1A0}',
     /* Hold: amber, so it reads as "set aside" rather than as a nav button. The
        Held button is dimmed while the list is empty instead of being hidden -
        a button that appears and disappears is harder to find than a dim one. */
@@ -305,9 +300,6 @@
     root.innerHTML =
       '<div id="stx-bar">' +
         '<span id="stx-pos">—</span>' +
-      // Standing answer to "how much is left?" - visible on every order, not
-      // only in the message that scrolls past when the pass ends.
-      '<span id="stx-status">—</span>' +
         '<span id="stx-say"></span>' +
         '<span class="stx-hideable" style="display:contents">' +
           '<button type="button" data-act="restart">\u{1F501} Restart</button>' +
@@ -595,7 +587,6 @@
 
     var segs = segments();
     rememberPosition();
-    updateStatus();          // Remaining count follows the cursor, every order
 
     // When several pack lists were merged into one view, say which one this
     // order came from. The loader tags each row with data-stx-file; a single
@@ -710,39 +701,6 @@
 
   function say(msg) { var el = $('stx-say'); if (el) el.textContent = msg; }
 
-  /* Orders still to do in the CURRENT pass, counted from where the packer is
-   * standing. Back does not inflate it - it is "what is ahead of me", which is
-   * the question being asked. */
-  function counts() {
-    var rem = 0;
-    for (var i = index; i < QUEUE.length; i++) {
-      if (QUEUE[i] && QUEUE[i].kind === 'order' && inMode(i)) rem++;
-    }
-    return { remaining: rem, held: HELD.length, total: ORDERS.length };
-  }
-
-  function updateStatus() {
-    var el = $('stx-status');
-    if (!el) return;
-    el.classList.remove('stx-warn', 'stx-done');
-    var c = counts();
-
-    if (allComplete) {
-      el.textContent = '\u2713 All orders completed';
-      el.classList.add('stx-done');
-    } else if (mode === 'held') {
-      el.textContent = 'Held pass \u00b7 ' + c.remaining + ' of ' + c.held + ' left';
-      el.classList.add('stx-warn');
-    } else if (normalPassDone && c.held) {
-      el.textContent = 'Normal done \u00b7 ' + c.held + ' held remaining';
-      el.classList.add('stx-warn');
-    } else {
-      el.textContent = 'Remaining ' + c.remaining + ' of ' + c.total +
-                       (c.held ? '  \u00b7  Held ' + c.held : '');
-      if (c.held) el.classList.add('stx-warn');
-    }
-  }
-
   function updateHoldUI() {
     var b = $('stx-heldbtn');
     if (!b) return;
@@ -751,12 +709,10 @@
     b.classList.toggle('stx-on', mode === 'held');
     var h = $('stx-hold');
     if (h) h.disabled = (mode === 'held');
-    updateStatus();
   }
 
   function allDone() {
     mode = 'normal';
-    allComplete = true;
     updateHoldUI();
     say('All orders completed \u2014 normal and held. Nothing remaining.');
     speak('All orders completed.');
@@ -824,7 +780,6 @@
         if (mode === 'held') { say('Already working through the held orders.'); break; }
         if (HELD.indexOf(he.orderIndex) !== -1) { say('This order is already held.'); break; }
         HELD.push(he.orderIndex);
-        allComplete = false;          // holding re-opens the run
         updateHoldUI();
         rememberPosition();
         var nx = step(index, 1);
@@ -861,7 +816,7 @@
 
       case 'restart':
         index = 0; segIndex = 0;
-        HELD = []; mode = 'normal'; normalPassDone = false; allComplete = false;
+        HELD = []; mode = 'normal'; normalPassDone = false;   // a restart is a fresh run
         updateHoldUI();
         render(); speakCurrent();
         break;
@@ -1116,25 +1071,11 @@
      * a packer saying "hold", recorded on the floor. Both words are absent from
      * the catalogue, so mapping it costs nothing and saves a retry. The real
      * fix for that class of error is the listening-accent setting above. */
-    { a: 'hold',     re: /\b(hold|holds|held|holt|halt|old|cold|bold|fold|told|gold)\b|\bcall girl\b/ },
+    { a: 'hold',     re: /\b(hold|holds|held|holt|halt|old|cold|bold|fold|told)\b|\bcall girl\b/ },
     /* Plain-English alternatives. For an accented speaker these recognise far
      * more reliably than the single syllable "hold" - two syllables and a
      * common word give the language model something to lock onto. */
     { a: 'hold',     re: /\b(keep|park|later|skip|aside|pending|wait)\b/ },
-
-    /* CLEAR PHRASES for Hold - the forms to teach the packers.
-     *
-     * None of these contains the word "hold", which is the point: they still
-     * work on the runs where the recogniser never produces that syllable at
-     * all. Two words also give the language model context, so they are matched
-     * far more reliably than any single word can be. */
-    /* "back" and "next" are deliberately NOT accepted inside these phrases.
-     * "move this back" belongs to Back and "next time" to Next; an existing
-     * command must keep its meaning, so those two forms were dropped rather
-     * than allowed to compete. */
-    { a: 'hold',     re: /\b(?:set|put|keep|leave|push)\s+(?:it\s+|this\s+|that\s+)?(?:aside|later)\b/ },
-    { a: 'hold',     re: /\b(?:pack|do|come\s+back)\s+later\b/ },
-    { a: 'hold',     re: /\b(?:skip|park|hold)\s+(?:this|it|that|order|one)\b/ },
     { a: 'showhold', re: /\bshowhold\b/ }
   ];
 
@@ -1160,36 +1101,8 @@
      is the only one suppressed, and only while audio is actually playing.
      next, back, repeat and restart stay live at all times, which is the whole
      point of listening through speech. */
-  /* Words that are BOTH a plausible mishearing of "hold" AND real catalogue
-   * speech. "Gold" is the reported case: 323 products contain it, one of them
-   * named simply "Gold" and another "Rose Gold".
-   *
-   * They are accepted as Hold only while the tool is SILENT. If the tool is
-   * talking, "gold" is a colour it just read out, not an instruction - which is
-   * the same reasoning the postcode guard already uses. That makes the risky
-   * words usable instead of banned, without ever letting the tool hold an order
-   * by talking to itself. */
-  /* Tokens that mean Hold and appear NOWHERE in the catalogue - all verified
-   * against the 9,729 unique strings in reference-data.js at zero collisions. */
-  var HOLD_STRONG = /\b(?:hold|holds|held|holt|halt|keep|kept|park|parked|later|skip|skipped|aside|pending|wait)\b|\bcall girl\b/;
-
-  function isSelfEcho(action, heard) {
-    if (action === 'postcode' && synth.speaking) return true;
-
-    /* While the tool is TALKING, Hold needs a strong word.
-     *
-     * "gold", "old", "cold", "bold", "fold" and "told" are all plausible
-     * mishearings of "hold", so they are accepted - but 323 catalogue products
-     * contain "gold" ("360 Black gold inner celing rose", "hair clip Gold"),
-     * and the microphone hears every one of them as the tool reads it out.
-     *
-     * An earlier version anchored this test to the whole transcript, so a bare
-     * "gold" was caught but "hair clip gold" sailed through and held the order.
-     * Requiring a strong token instead closes that: catalogue speech contains
-     * none of them, while a packer saying "hold" or "set aside" over the top of
-     * the speech still gets through - which is the point of the open mic. */
-    if (action === 'hold' && synth.speaking && !HOLD_STRONG.test(heard || '')) return true;
-    return false;
+  function isSelfEcho(action) {
+    return action === 'postcode' && synth.speaking;
   }
 
   function matchCommand(t) {
@@ -1210,27 +1123,8 @@
       /\b(?:show|showed|shows)\s+(?:me\s+)?(?:the\s+)?(?:hold|holds|held|holt|halt|old)(?:\s+(?:list|orders?|ones?))?\b/g,
       'showhold');
     // "held list" / "hold list" on their own mean the same request.
-    /* "hold order" means HOLD THIS ORDER. "held orders" means SHOW ME THE HELD
-     * ONES. The difference is the tense - imperative "hold" versus past
-     * participle "held" - and an earlier version lost it, sending "hold order"
-     * to the held list instead of holding the order the packer was looking at.
-     * So the imperative words pair only with the word "list"; the past-tense
-     * words pair with anything. */
-    t = t.replace(/\b(?:hold|keep|park)\s+list\b/g, 'showhold');
-    t = t.replace(/\b(?:held|kept|pending|later)\s+(?:list|orders?|items?)\b/g, 'showhold');
+    t = t.replace(/\b(?:hold|held|keep|pending|later)\s+(?:list|orders?)\b/g, 'showhold');
     t = t.replace(/\bshow\s+(?:me\s+)?(?:the\s+)?(?:list|pending|later|kept)\b/g, 'showhold');
-
-    /* CLEAR PHRASES for Show Held.
-     *
-     * A single word is the hardest thing for a recogniser to place; a verb plus
-     * a noun gives the language model context and it locks on. These are the
-     * forms to teach the packers - the one-word versions above stay as a
-     * fallback for when they are in a hurry. */
-    t = t.replace(
-      /\b(?:show|open|view|display|play|go\s+to|goto|bring\s+up|list)\s+(?:me\s+)?(?:the\s+|my\s+|all\s+)*(?:held|hold|holds|kept|keep|pending|later|skipped|parked)(?:\s+(?:list|orders?|items?|ones?))?\b/g,
-      'showhold');
-    // "held orders" / "pending orders" on their own are unambiguous requests.
-    t = t.replace(/\b(?:held|skipped|parked|pending)\s+(?:orders?|items?|list)\b/g, 'showhold');
 
     var best = null, bestAt = -1;
     for (var i = 0; i < COMMANDS.length; i++) {
@@ -1599,7 +1493,7 @@
           }
           continue;
         }
-        if (isSelfEcho(a, heard)) { if (STX.debug) console.log('[mic]   ignored - tool is speaking'); continue; }
+        if (isSelfEcho(a)) { if (STX.debug) console.log('[mic]   ignored - tool is speaking'); continue; }
 
         // One utterance is one command. Different commands are never blocked.
         var now = Date.now();
