@@ -84,41 +84,6 @@
     return n ? String(n).trim() : '';
   }
 
-  /* THE COLLECTION CARD NAMES ITS SHADES.
-   *
-   * A collection group is keyed by family+size+colour, so one card can cover
-   * more than one SKU (LSBS160OR and LSBS160OR5PK merge). The name is taken
-   * from the FIRST of that card's SKUs that the SOT actually carries, and read
-   * through nameFor() - the same master-sheet path every order line already
-   * uses, live sheet first and built-in table second.
-   *
-   * The SOT test is what the business asked for and it is not decoration: a SKU
-   * the SOT does not carry has no authoritative name, and printing a guessed
-   * one on a picking card is worse than printing none. Those cards keep exactly
-   * the size + colour wording they have today. */
-  /* The pack suffix is stripped for the second look, exactly as productName()
-   * does it. LSFT220BG5PK is not a row in the SOT - LSFT220BG is - but a
-   * five-pack of an SOT shade is still an SOT shade, and the master sheet names
-   * it. Measured on the 13 live pack lists: 12 of the 92 collectible SKUs are
-   * pack-suffixed, so an exact-match-only test would drop the name from one
-   * collection card in eight for no reason a packer could work out. */
-  function isSotSku(sku) {
-    var sot = (w.REF && w.REF.sot) || null;
-    if (!sot) return false;
-    var k = String(sku || '').trim().toUpperCase();
-    return !!(sot[k] || sot[k.replace(/\d*A?PK$/, '')]);
-  }
-
-  function collectionName(g) {
-    var skus = (g && g.skus) || [];
-    for (var i = 0; i < skus.length; i++) {
-      if (!isSotSku(skus[i])) continue;
-      var n = nameFor(skus[i]);
-      if (n) return n;
-    }
-    return '';
-  }
-
   function productSpeech(name, colour, sku) {
     if (name) return ':: ' + name;
     if (!sku) return '';                            // nothing at all to say
@@ -154,14 +119,7 @@
     var say = ['Collect lampshades first.', 'Collection ' + c.batch + '.',
                c.total + ' lampshade' + (c.total === 1 ? '' : 's') + '.'];
     c.groups.forEach(function (g) {
-      // Name FIRST, then the size and colour that were already spoken. The
-      // colour is deliberately kept rather than replaced by the name the way
-      // productSpeech() does it: on a shelf trip the packer is matching a
-      // colour by eye across several cards, and dropping it to save a word
-      // would take information away from the one step that needs it most.
-      var nm = collectionName(g);
-      say.push((nm ? nm + '. ' : '') +
-               (g.size ? g.size + ' millimeter. ' : '') +
+      say.push((g.size ? g.size + ' millimeter. ' : '') +
                (g.colour || 'colour unknown') + '. ' + g.qty + '.');
     });
     say.push('Then pack this order.');
@@ -182,7 +140,7 @@
     QUEUE = [];
     ORDERS.forEach(function (o, i) {
       // An order short on BOTH prefix lists triggers two collections, each with
-      // its own limit of Engine.MAX_COLLECTION. Each becomes its own queue entry.
+      // its own limit of 15. Each becomes its own queue entry.
       (collections[i] || []).forEach(function (c) {
         QUEUE.push({ kind: 'collection', collection: c, order: o, orderIndex: i });
       });
@@ -215,11 +173,6 @@
     '#stx-bar button.stx-primary{background:#0F6E76;border-color:#0F6E76;font-weight:600}',
     '#stx-bar button.stx-primary:hover{background:#12858F;border-color:#12858F}',
     '#stx-pause.stx-on{background:#1F7A4D;border-color:#1F7A4D}',
-    '.stx-names{display:flex;flex-direction:column;gap:6px;align-items:flex-start}',
-    '#stx-namestat{font-size:12px;line-height:1.4;color:#9FB0BE}',
-    '#stx-namestat.stx-live{color:#7FD1A0}',
-    '#stx-namestat.stx-stale{color:#E0AE4F}',
-    '#stx-namesbtn{font-size:12.5px;padding:5px 11px}',
     '#stx-status{font-size:13px;font-weight:600;padding:4px 11px;border-radius:99px;white-space:nowrap;',
     '  border:1px solid #3A4A5E;background:#1B2430;color:#B9C6D4}',
     '#stx-status.stx-warn{border-color:#7A5A1F;background:#33280F;color:#F0C674}',
@@ -301,11 +254,7 @@
     '.stx-card img{width:100%;height:158px;object-fit:contain;background:#fff;border-radius:10px;display:block}',
     '.stx-badge{position:absolute;top:6px;right:6px;background:#B45F06;color:#fff;min-width:40px;height:40px;',
       'border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:800;padding:0 8px}',
-    '.stx-cname{font-size:17px;font-weight:800;color:#5A2D03;margin-top:9px;line-height:1.25}',
-    /* With a name above it the SKU becomes the cross-check rather than the
-       headline, so it steps back to the size and weight of the colour line. */
     '.stx-csku{font-size:18px;font-weight:700;color:#3B2A12;margin-top:9px;word-break:break-all}',
-    '.stx-cname + .stx-csku{font-size:14px;font-weight:600;color:#7A6A55;margin-top:3px}',
     '.stx-ccol{font-size:16px;color:#5A2D03;margin-top:3px}',
     '.stx-csize{font-size:15px;color:#7A6A55;margin-top:2px}',
     '.stx-ctake{margin-top:7px;background:#F3E3C8;border-radius:8px;padding:5px 8px;font-size:17px;font-weight:700;color:#8A4405}',
@@ -342,37 +291,6 @@
       'padding:15px 34px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit}',
     '#stx-start-b:hover{background:#12858F}',
     '#stx-start-b:focus-visible{outline:3px solid #4FB0C6;outline-offset:3px}',
-    /* Confirm dialog and Finished card share the Start card's shell: same dark
-       panel, same radius, same shadow. A packer has already met that shape once
-       at the top of the run, so neither of these reads as a new kind of thing. */
-    '#stx-confirm,#stx-done{position:fixed;inset:0;z-index:2147483011;background:rgba(10,15,20,.72);',
-      'display:flex;align-items:center;justify-content:center;padding:24px}',
-    '.stx-modal{background:#12181F;border:1px solid #3A4A5E;border-radius:14px;',
-      'padding:30px 34px;text-align:center;max-width:520px;width:100%;',
-      'box-shadow:0 18px 50px rgba(0,0,0,.55);color:#EAF0F5}',
-    '.stx-modal h3{margin:0 0 8px;font-size:23px;font-weight:700;color:#EAF0F5}',
-    '.stx-modal p{margin:0 0 20px;font-size:14.5px;color:#8FA3B5;line-height:1.5}',
-    '.stx-acts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}',
-    '.stx-modal button{font-family:inherit;font-size:16px;font-weight:600;border-radius:9px;',
-      'padding:13px 26px;cursor:pointer;border:1px solid #3A4A5E;background:#243040;color:#EAF0F5}',
-    '.stx-modal button:hover{background:#2E3D50;border-color:#54677E}',
-    '.stx-modal button:focus-visible{outline:3px solid #4FB0C6;outline-offset:3px}',
-    '.stx-modal button.stx-yes{background:#0F6E76;border-color:#0F6E76}',
-    '.stx-modal button.stx-yes:hover{background:#12858F;border-color:#12858F}',
-    /* The say-this hint. The packer can click, but the whole point of the tool
-       is that their hands are full, so the spoken answer is shown first. */
-    '.stx-hint{margin:16px 0 0;font-size:13px;color:#8FA3B5}',
-    '.stx-hint b{color:#7FD9A6}',
-    /* Finished card. Green mark, and the numbers that make it checkable -
-       "it says done, but done of how many?" is the first thing asked. */
-    '#stx-done .stx-modal{border-color:#1F7A4D}',
-    '.stx-tick{width:58px;height:58px;border-radius:50%;background:#12301F;border:2px solid #1F7A4D;',
-      'color:#7FD1A0;font-size:30px;line-height:54px;margin:0 auto 14px}',
-    '.stx-sum{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:0 0 22px}',
-    '.stx-sum div{background:#1B2430;border:1px solid #3A4A5E;border-radius:10px;padding:11px 18px;min-width:96px}',
-    '.stx-sum b{display:block;font-size:24px;font-weight:800;color:#EAF0F5;',
-      'font-variant-numeric:tabular-nums;line-height:1.15}',
-    '.stx-sum span{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:#8FA3B5}',
     '@media (prefers-reduced-motion:reduce){#stx-mic .stx-dot{animation:none}}'
   ].join('');
 
@@ -428,14 +346,6 @@
           '<option value="en-US">English (US)</option>' +
         '</select></div>' +
       '<div class="stx-f"><label for="stx-voice">Voice</label><select id="stx-voice"></select></div>' +
-      // Which SKU->Name table is actually in use. Shown rather than assumed:
-      // a sheet that has quietly stopped being reachable must be visible, not
-      // look identical to one that is working.
-      '<div class="stx-f"><label>Names</label>' +
-        '<div class="stx-names">' +
-          '<span id="stx-namestat">Checking\u2026</span>' +
-          '<button type="button" id="stx-namesbtn">Refresh Names</button>' +
-        '</div></div>' +
       '<div class="stx-f"><label>Speed</label><div class="stx-seg" id="stx-rate">' +
         '<button type="button" data-r="0.6">Slow</button>' +
         '<button type="button" data-r="0.7" aria-pressed="true">Normal</button>' +
@@ -443,38 +353,6 @@
         '<button type="button" data-r="1.5">Faster</button>' +
       '</div></div>';
     root.appendChild(set);
-
-    /* Name status + manual refresh.
-     *
-     * A refresh needs no reload and no requeue: nameFor() is called from
-     * orderSegments() and showZoom() at RENDER time, so re-rendering the order
-     * the packer is on is enough to pick up a corrected name. */
-    function paintNames() {
-      var el = set.querySelector('#stx-namestat');
-      if (!el || !w.STX_NAMES) return;
-      var st = w.STX_NAMES.state;
-      el.textContent = w.STX_NAMES.status();
-      el.className = st.source === 'live' ? 'stx-live'
-                   : st.source === 'cached' ? 'stx-stale' : '';
-    }
-    w.STX_paintNames = paintNames;
-
-    var nb = set.querySelector('#stx-namesbtn');
-    if (nb) {
-      nb.onclick = function () {
-        if (!w.STX_NAMES) return;
-        nb.disabled = true;
-        var was = nb.textContent;
-        nb.textContent = 'Refreshing\u2026';
-        w.STX_NAMES.refresh({ manual: true }).then(function (changed) {
-          nb.disabled = false;
-          nb.textContent = was;
-          paintNames();
-          if (changed) render();      // the order on screen picks up new names
-        });
-      };
-    }
-    paintNames();
 
     var rl = set.querySelector('#stx-reclang');
     if (rl) {
@@ -527,13 +405,8 @@
         ? '<img src="' + esc(g.img) + '" alt="' + esc(g.skus.join(' + ')) + '">'
         : '<div style="height:158px;background:#fff;border-radius:10px;display:flex;align-items:center;' +
           'justify-content:center;color:#B9A88F;font-size:14px">No image</div>';
-      // Above the SKU, because the name is what the packer reads first and the
-      // SKU is what they check against afterwards. Absent for a non-SOT SKU, and
-      // the card then looks exactly as it did before.
-      var nm = collectionName(g);
       return '<div class="stx-card"><div class="stx-imgwrap">' + img +
         '<span class="stx-badge">' + esc(g.qty) + '</span></div>' +
-        (nm ? '<div class="stx-cname">' + esc(nm) + '</div>' : '') +
         '<div class="stx-csku">' + esc(g.skus.join(' + ')) + '</div>' +
         '<div class="stx-ccol">' + esc(g.colour || '') + '</div>' +
         (g.size ? '<div class="stx-csize">' + esc(g.size) + 'mm</div>' : '') +
@@ -687,109 +560,6 @@
   }
 
   /* =========================================================================
-     CONFIRM — "are you sure?" for the one control that throws work away
-     =========================================================================
-     Restart used to fire the instant it was pressed or heard, and it clears
-     everything: the position, the held list, both pass flags. On a bench that
-     is one syllable away from losing a shift's progress - the voice command is
-     /\b(restart|start)\b/, and "start" is a word a packer says out loud.
-
-     So Restart now ASKS, and the answer arrives the same three ways every other
-     control does: the Yes button, the Enter key, or the spoken word. One
-     pending question at a time, held in confirmPending. */
-  var confirmPending = null;         // { onYes: fn } while a question is up
-
-  function hideConfirm() {
-    confirmPending = null;
-    var c = $('stx-confirm');
-    if (c) c.parentNode.removeChild(c);
-  }
-
-  function askConfirm(title, detail, onYes) {
-    hideConfirm();
-    confirmPending = { onYes: onYes };
-    var c = d.createElement('div');
-    c.id = 'stx-confirm';
-    c.innerHTML =
-      '<div class="stx-modal" role="alertdialog" aria-label="' + esc(title) + '">' +
-        '<h3>' + esc(title) + '</h3>' +
-        '<p>' + esc(detail) + '</p>' +
-        '<div class="stx-acts">' +
-          '<button type="button" class="stx-yes" data-act="yes">\u2713 Yes, restart</button>' +
-          '<button type="button" data-act="no">Cancel</button>' +
-        '</div>' +
-        '<p class="stx-hint">Say <b>Yes</b> to confirm, or <b>No</b> to cancel.</p>' +
-      '</div>';
-    mount(c);
-    var y = c.querySelector('button[data-act="yes"]');
-    if (y) y.focus();
-    /* The prompt deliberately does NOT contain the word "yes".
-     * The microphone stays open while the tool talks, so a spoken "say yes to
-     * restart" is transcribed straight back and matched as the answer to its
-     * own question. isSelfEcho() guards it as well, but the reliable fix is to
-     * never put the trigger word into the tool's mouth. */
-    speak('Do you want to restart from the first order?');
-  }
-
-  function askRestart() {
-    var c = counts();
-    askConfirm(
-      'Restart from the first order?',
-      'This clears where you are' + (c.held ? ', the ' + c.held + ' held order' +
-        (c.held > 1 ? 's' : '') : '') + ' and starts the whole pack list again.',
-      doRestart);
-  }
-
-  // The original Restart body, unchanged - only the way it is reached is new.
-  function doRestart() {
-    hideFinished();
-    index = 0; segIndex = 0;
-    HELD = []; mode = 'normal'; normalPassDone = false; allComplete = false;
-    updateHoldUI();
-    render(); speakCurrent();
-  }
-
-  /* =========================================================================
-     FINISHED — the end of the run, said plainly
-     =========================================================================
-     The status chip already turned green, but a chip on a bar is not an answer
-     to "am I done?" from two steps back from the bench. allDone() is the only
-     terminal state the tool has, so it gets a card: the tick, the numbers that
-     make the claim checkable, and the only two things left to do. */
-  function hideFinished() {
-    var c = $('stx-done');
-    if (c) c.parentNode.removeChild(c);
-  }
-
-  function showFinished() {
-    hideFinished();
-    var colls = 0;
-    for (var i = 0; i < QUEUE.length; i++) if (QUEUE[i].kind === 'collection') colls++;
-
-    var tiles = '<div><b>' + esc(ORDERS.length) + '</b><span>Orders packed</span></div>';
-    if (colls) tiles += '<div><b>' + esc(colls) + '</b><span>Collection' + (colls > 1 ? 's' : '') + '</span></div>';
-    // Only when the loader merged several pack lists - one file needs no count.
-    if (filesMerged > 1) tiles += '<div><b>' + esc(filesMerged) + '</b><span>Pack lists</span></div>';
-
-    var c = d.createElement('div');
-    c.id = 'stx-done';
-    c.innerHTML =
-      '<div class="stx-modal" role="dialog" aria-label="All orders packed">' +
-        '<div class="stx-tick">\u2713</div>' +
-        '<h3>All orders packed</h3>' +
-        '<p>Every order on this pack list has been read, and no orders are being held.</p>' +
-        '<div class="stx-sum">' + tiles + '</div>' +
-        '<div class="stx-acts">' +
-          '<button type="button" class="stx-yes" data-act="restart">\u{1F501} Start again</button>' +
-          '<button type="button" data-act="closedone">Close</button>' +
-        '</div>' +
-      '</div>';
-    mount(c);
-    var b = c.querySelector('button[data-act="closedone"]');
-    if (b) b.focus();
-  }
-
-  /* =========================================================================
      MOVING THROUGH THE PAGE
      ========================================================================= */
   var lastActive = null;
@@ -893,27 +663,10 @@
      product is spoken" looks like from the floor. */
   var navBusy = false;
 
-  /* Anything the packer does while a question is on screen DISMISSES the
-   * question and then does what they asked. Only 'yes' answers it. Leaving the
-   * dialog up while Next moved underneath it would put the tool in a state
-   * where the next spoken "yes" restarted a run that had already moved on. */
-  var PASSES_CONFIRM = { yes: 1, no: 1 };
-
-  // The Finished card is dismissed by anything that resumes work. Repeat,
-  // Postcode and Pause do not move the cursor, so they leave it up.
-  /* 'restart' is deliberately ABSENT: it only opens a question. Cancelling must
-   * leave the Finished card exactly where it was, so doRestart() is what takes
-   * it down - once the answer is actually yes. */
-  var CLEARS_FINISHED = { next: 1, back: 1, hold: 1, showhold: 1, closedone: 1 };
-
   function nav(action) {
     if (navBusy) return;
     navBusy = true;
-    try {
-      if (confirmPending && !PASSES_CONFIRM[action]) hideConfirm();
-      if (CLEARS_FINISHED[action]) hideFinished();
-      navRun(action);
-    } finally { navBusy = false; }
+    try { navRun(action); } finally { navBusy = false; }
   }
 
   /* ---- Hold helpers -------------------------------------------------------
@@ -1007,7 +760,6 @@
     updateHoldUI();
     say('All orders completed \u2014 normal and held. Nothing remaining.');
     speak('All orders completed.');
-    try { showFinished(); } catch (e) { console.warn('[Speak Tool] finished card:', e); }
   }
 
   /* Reached the end of the current pass. This is the ONLY behaviour change to
@@ -1107,25 +859,11 @@
         break;
       }
 
-      /* Restart ASKS. doRestart() holds the body that used to be here. */
       case 'restart':
-        askRestart();
-        break;
-
-      case 'yes': {
-        if (!confirmPending) break;          // nothing was asked
-        var fn = confirmPending.onYes;
-        hideConfirm();
-        if (fn) fn();
-        break;
-      }
-
-      case 'no':
-        hideConfirm();
-        break;
-
-      case 'closedone':
-        hideFinished();
+        index = 0; segIndex = 0;
+        HELD = []; mode = 'normal'; normalPassDone = false; allComplete = false;
+        updateHoldUI();
+        render(); speakCurrent();
         break;
 
       // Same two-way toggle the Pause button drives, so the verified resume in
@@ -1227,25 +965,7 @@
     return true;
   }
 
-  /* THE COLLECTION IS READ SLOWER THAN EVERYTHING ELSE.
-   *
-   * A collection utterance is one long block - batch number, total, then every
-   * size, colour and count on the card - and the packer is copying numbers off
-   * a shelf while it runs. Reported as too fast to follow on 2026-08-20.
-   *
-   * A FACTOR, not a fixed rate, so the Speed buttons still mean what they say:
-   * a packer who chose Fast gets a fast collection, just proportionally slower
-   * than their fast orders. Floored so no combination can reach a crawl. */
-  var COLLECTION_RATE_FACTOR = 0.75;
-  var MIN_RATE = 0.4;
-
-  function collectionRate() {
-    return Math.max(MIN_RATE, speechRate * COLLECTION_RATE_FACTOR);
-  }
-
-  // rate is OPTIONAL. Every existing caller passes nothing and gets speechRate,
-  // exactly as before - only speakCurrent() on a collection entry overrides it.
-  function speak(text, done, rate) {
+  function speak(text, done) {
     if (!text) { if (done) done(); return; }
     synth.cancel();
     paused = false;
@@ -1257,7 +977,7 @@
     speakingNow = String(text).toLowerCase();
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
-    u.rate = rate || speechRate;
+    u.rate = speechRate;
     if (selectedVoice) u.voice = selectedVoice;
     // onstart is the only honest signal that audio really began. Chrome accepts
     // speak() and silently drops it when the page has had no user gesture yet,
@@ -1280,8 +1000,7 @@
     // The panel is re-stamped from the same segment that is about to be spoken,
     // so the SKU on screen and the SKU in the ear cannot disagree.
     $('stx-say').textContent = seg.say;
-    var e = QUEUE[index];
-    speak(seg.say, null, (e && e.kind === 'collection') ? collectionRate() : speechRate);
+    speak(seg.say);
   }
 
   function setPauseBtn(on) {
@@ -1457,12 +1176,6 @@
   function isSelfEcho(action, heard) {
     if (action === 'postcode' && synth.speaking) return true;
 
-    /* Belt and braces on the restart question. The prompt is worded without the
-     * word "yes" so there is nothing to echo, but a confirmation that can be
-     * triggered by the tool's own voice would be worse than no confirmation at
-     * all - it would look like the packer had agreed. */
-    if (action === 'yes' && synth.speaking) return true;
-
     /* While the tool is TALKING, Hold needs a strong word.
      *
      * "gold", "old", "cold", "bold", "fold" and "told" are all plausible
@@ -1479,36 +1192,8 @@
     return false;
   }
 
-  /* YES / NO — live ONLY while a confirmation is on screen.
-   *
-   * Kept out of the COMMANDS table on purpose. Matching is last-position-wins
-   * across that whole table, so a permanently-live "yes" would beat a real
-   * command sitting earlier in the same transcript: "next yes" would resolve to
-   * yes and the packer's Next would be silently dropped. Scoped to the moment a
-   * question is actually being asked, neither word can cost anything.
-   *
-   * Checked against the 10,312 unique strings in reference-data.js: yes, yeah,
-   * yep, yup, confirm, correct, nope, nah and cancel all score ZERO collisions.
-   * "no" hits exactly one product ("no pocket textured apron Black and White"),
-   * which is harmless here - the tool is not reading product names while a
-   * question is up.
-   *
-   * REJECTED, and worth recording so nobody adds them later: "ok", "okay",
-   * "right" and "sure". All four are clean against the catalogue, but they are
-   * conversational filler - "right, next one" would restart the run. An
-   * affirmative that throws away a shift's progress has to be deliberate. */
-  var YES_RE = /\b(yes|yeah|yep|yup|confirm|correct)\b/;
-  var NO_RE  = /\b(no|nope|nah|cancel)\b/;
-
   function matchCommand(t) {
     if (!t) return null;
-
-    if (confirmPending) {
-      if (YES_RE.test(t)) return 'yes';
-      if (NO_RE.test(t)) return 'no';
-      // Anything else falls through and is handled as a normal command, which
-      // nav() treats as dismissing the question. The packer is never trapped.
-    }
 
     // "start again" is one instruction, not "start" then "again". Collapsed
     // first so it resolves to restart under last-match-wins.
@@ -1970,15 +1655,6 @@
 
   d.addEventListener('keydown', function (ev) {
     if (typing(ev.target) || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    /* While a question is up, Enter and Escape answer IT. Without this, Enter
-     * was still mapped to Restart and re-asked the question the packer was busy
-     * answering - and the focused Yes button would have fired a second time on
-     * top. preventDefault stops that native activation. */
-    if (confirmPending && (ev.key === 'Enter' || ev.key === 'Escape')) {
-      nav(ev.key === 'Enter' ? 'yes' : 'no');
-      ev.preventDefault();
-      return;
-    }
     if (ev.key === 'Escape') { hideZoom(); return; }
     var map = { ArrowRight: 'next', ArrowLeft: 'back', ArrowUp: 'repeat', Enter: 'restart' };
     if (ev.key === 'ArrowDown') { togglePause(); ev.preventDefault(); return; }
@@ -1998,13 +1674,6 @@
       console.error('[Speak Tool] engine.js and reference-data.js must load before this file.');
       return;
     }
-
-    /* Cached names go in BEFORE the pack list is parsed. localStorage is
-       synchronous, so this costs nothing and means a packer who used the tool
-       yesterday gets corrected names on the very first order, with no network
-       wait. The network call it may start is not awaited - presentation must
-       never delay a queue that is ready. */
-    var namesReady = (w.STX_NAMES && w.STX_NAMES.boot) ? w.STX_NAMES.boot() : null;
 
     ORDERS = w.Engine.parseDoc(d, 'pack list');
 
@@ -2028,16 +1697,6 @@
     STX.orders = ORDERS;
     STX.queue = QUEUE;
     STX.nav = nav;
-    STX.names = w.STX_NAMES || null;
-
-    // When the live fetch lands after the first order is already on screen,
-    // repaint it so a corrected name is not held back until the packer moves on.
-    if (namesReady && namesReady.then) {
-      namesReady.then(function (changed) {
-        if (w.STX_paintNames) w.STX_paintNames();
-        if (changed) { try { render(); } catch (e) {} }
-      });
-    }
 
     injectPanel();
     var resumed = restorePosition();

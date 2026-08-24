@@ -79,12 +79,17 @@
     var hit=(w.REF&&w.REF.sot)?w.REF.sot[String(sku||'').trim().toUpperCase()]:null;
     return hit && hit[3] ? hit[3] : '';
   }
+  /* Live names from the master sheet are consulted first, the built-in table
+     second. STX_NAMES.map is already built-in-plus-live merged, so the || chain
+     below is belt and braces: if names-live.js is absent, or its fetch failed,
+     map is null and this behaves exactly as it did before. */
   function productName(sku){
     var k=String(sku||'').trim().toUpperCase();
-    var n=(w.REF&&w.REF.names)?w.REF.names[k]:'';
+    var live=(w.STX_NAMES&&w.STX_NAMES.map)||null;
+    var n=(live&&live[k])||((w.REF&&w.REF.names)?w.REF.names[k]:'');
     if (n) return n;
     var base=k.replace(/\d*A?PK$/,'');                 // LSFT220BG5PK -> LSFT220BG
-    return (w.REF&&w.REF.names&&w.REF.names[base]) || '';
+    return (live&&live[base])||(w.REF&&w.REF.names&&w.REF.names[base])||'';
   }
 
   /* ---- packing priority ---------------------------------------------------
@@ -249,12 +254,18 @@
      from the order. LSCP, LSCA, LSCO, LSFC, LSHQ and WCFS all fall outside on
      purpose (confirmed 2026-08-18).
 
-     The 15 limit is PER LIST, not shared: an order short on both lists triggers
-     two collections of up to 15 each, shown as two cards.
+     The 10 limit is PER LIST, not shared: an order short on both lists triggers
+     two collections of up to 10 each, shown as two cards.
 
      Never collect everything up front, and "insufficient" is checked PER SKU -
-     15 of the wrong shade does not help. */
-  var MAX_COLLECTION = 15;
+     10 of the wrong shade does not help.
+
+     Lowered from 15 to 10 on 2026-08-20: the packers reported that carrying 15
+     shades back from the shelf in one trip is not workable in practice. Only
+     the number changes - every rule above (per-list, per-SKU, the triggering
+     order always completed) is untouched, and the "n / 10" card total follows
+     the constant because the dialog reads Engine.MAX_COLLECTION. */
+  var MAX_COLLECTION = 10;
 
   var COLLECT_RUN_PREFIXES = ['LSBS','LSSS','LSWE','WCCY','LSCYRO','LSBG','LSCG',
                               'LSFG','LSGD','LSGG','LSGL','WCB','WCD','WCWD'];
@@ -363,7 +374,7 @@
 
     // One batch, but each family walks only its OWN run of consecutive orders
     // and stops at the first order that does not carry it. Families short on the
-    // same order share the one batch and the one 15 limit.
+    // same order share the one batch and the one MAX_COLLECTION limit.
     function buildRunBatch(oi, families){
       var c=newBatch('RUN');
       families.forEach(function(fam){

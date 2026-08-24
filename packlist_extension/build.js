@@ -24,6 +24,7 @@ if (!RULES) {
 const parts = [
   ['reference data (names master + Lampshade SOT)', RULES + '/reference-data.js'],
   ['packing rules engine',                          RULES + '/engine.js'],
+  ['live names from the master sheet',              'packlist_extension/src/names-live.js'],
   ['pack list extension (UI, speech, voice)',       'packlist_extension/src/speak-extension.js'],
 ];
 

@@ -1,0 +1,33 @@
+
+| Test | Result |
+|---|---|
+| 1. Built-in names still work | PASS |
+| 1b. Pack-suffix fallback still works | PASS |
+| 1c. Unknown SKU still returns empty | PASS |
+| 2. Live sheet overrides a built-in name | PASS |
+| 3. New SKU from the sheet is available | PASS |
+| 4. Built-in name with no sheet row survives | PASS |
+| 4b. Source reported as live | PASS |
+| 5. Blank sheet name does not erase built-in | PASS |
+| 5b. Blank-name row is not stored at all | PASS |
+| 6. Failed fetch keeps built-in names | PASS |
+| 6b. Failed fetch reports built-in source | PASS |
+| 6c. Failed fetch records the reason | PASS |
+| 6d. HTTP error keeps built-in names | PASS |
+| 6e. Truncated download is rejected | PASS |
+| 6f. Non-CSV response is rejected | PASS |
+| 7. Refresh Names picks up an edit | PASS |
+| 7b. Cache survives and is used offline | PASS |
+| 7c. Cached source reported | PASS |
+| 7d. Unwritable localStorage does not break the run | PASS |
+| 10. Merged map never smaller than built-in | PASS |
+| 10b. Every built-in key survives the merge | PASS |
+| 10c. window.REF.names is never mutated | PASS |
+| 8. Voice commands untouched (9 actions present) | PASS |
+| 8b. Speech path untouched | PASS |
+| 9. Packing / order logic untouched | PASS |
+| 9b. SKU logic untouched | PASS |
+| 9c. Hold feature still present | PASS |
+| 9d. reference-data.js still bundled | PASS |
+
+28 passed, 0 failed
