@@ -814,6 +814,15 @@ window.REF = {
    * orderIndex keeps them together - packing a shade collection separately from
    * the order that needs it would be worse than not holding at all. */
   var HELD = [];              // orderIndex values, in the order they were held
+  /* WHERE THE NORMAL PASS WAS LEFT, saved the moment the held pass starts.
+   *
+   * Without it the tool had no idea, and endOfPass() guessed with step(-1, 1) -
+   * a forward scan from the top. By the time that line runs HELD is empty and
+   * mode is back to 'normal', so inMode() is true for every entry and the scan
+   * returns entry 0. A packer who held order 4, packed on to 7 and then worked
+   * their held order was sent back to order 1 with no way to tell it had
+   * happened. Reported from the floor 2026-08-24. */
+  var resumeAt = null;        // { i: queue index, s: segment } | null
   var mode = 'normal';        // 'normal' | 'held' - which pass is running
   var normalPassDone = false; // the normal pass has reached its end
   var allComplete = false;    // both passes finished - drives the status chip
@@ -1507,6 +1516,7 @@ window.REF = {
     hideFinished();
     index = 0; segIndex = 0;
     HELD = []; mode = 'normal'; normalPassDone = false; allComplete = false;
+    resumeAt = null;
     updateHoldUI();
     render(); speakCurrent();
   }
@@ -1622,7 +1632,11 @@ window.REF = {
         i: index, s: segIndex, n: QUEUE.length,
         // Session-scoped, same as the position: a held order must survive an
         // accidental refresh mid-shift. No new storage mechanism is introduced.
-        h: HELD, m: mode, d: normalPassDone
+        h: HELD, m: mode, d: normalPassDone,
+        // Saved with the rest of it: a refresh in the middle of the held pass
+        // would otherwise lose the way back and fall through to the old
+        // scan-from-the-top behaviour, which is the bug this fixes.
+        r: resumeAt
       }));
     } catch (e) { /* private mode - the run still works */ }
   }
@@ -1642,6 +1656,10 @@ window.REF = {
       HELD = Array.isArray(p.h) ? p.h.filter(function (x) { return typeof x === 'number'; }) : [];
       mode = (p.m === 'held' && HELD.length) ? 'held' : 'normal';
       normalPassDone = !!p.d;
+      // Only meaningful while the held pass is actually running; kept narrow so
+      // a stale entry can never redirect an ordinary pass.
+      resumeAt = (mode === 'held' && p.r && typeof p.r.i === 'number' &&
+                  p.r.i >= 0 && p.r.i < QUEUE.length) ? { i: p.r.i, s: p.r.s || 0 } : null;
       return true;
     } catch (e) { return false; }
   }
@@ -1782,13 +1800,52 @@ window.REF = {
       // which has no per-order completion flag. Cleared once, at the end, so
       // Back still reaches every held order while the pass is running.
       HELD = [];
-      if (normalPassDone) { allDone(); return; }
+      if (normalPassDone) { resumeAt = null; allDone(); return; }
       mode = 'normal';
       updateHoldUI();
-      var back = step(-1, 1);
-      if (back === -1) { allDone(); return; }
-      index = back; segIndex = 0; render(); speakCurrent();
-      say('Held orders finished. Back to the remaining normal orders.');
+
+      /* BACK TO WHERE THE PACKER LEFT OFF, then forward one.
+       *
+       * The held pass can only end one way - Next on the last segment of the
+       * last held order - so that Next is a real instruction, not a side effect
+       * of the pass changing. It is applied to the RESTORED position instead of
+       * being swallowed by the transition, which is what makes both cases come
+       * out right:
+       *
+       *   left mid-order (order 7, component 3 of 5)
+       *       -> back to 7, component 4. Nothing is skipped.
+       *   left having just finished order 7's last component
+       *       -> on to order 8. Nothing is read twice.
+       *
+       * There is no per-order completion flag to consult, and there does not
+       * need to be: the segment cursor already carries the distinction. */
+      var r = resumeAt;
+      resumeAt = null;
+      var resumed = r && typeof r.i === 'number' && r.i >= 0 && r.i < QUEUE.length && inMode(r.i);
+
+      if (resumed) {
+        index = r.i;
+        segIndex = (typeof r.s === 'number' && r.s > 0) ? r.s : 0;
+        var rsegs = segments();
+        if (segIndex > rsegs.length - 1) segIndex = Math.max(0, rsegs.length - 1);
+        if (segIndex < rsegs.length - 1) {
+          segIndex++;                       // more of this order still to read
+        } else {
+          var fwd = step(index, 1);         // that order was finished - move on
+          if (fwd === -1) { normalPassDone = true; allDone(); return; }
+          index = fwd; segIndex = 0;
+        }
+      } else {
+        // No saved position - a refresh mid-held-pass on an older session, or a
+        // queue that no longer holds it. The original scan is the fallback.
+        var back = step(-1, 1);
+        if (back === -1) { allDone(); return; }
+        index = back; segIndex = 0;
+      }
+
+      render(); speakCurrent();
+      say('Held orders finished \u2014 back at order ' + (QUEUE[index] ? QUEUE[index].orderIndex + 1 : '?') +
+          ' of ' + ORDERS.length + '.');
       return;
     }
     normalPassDone = true;
@@ -1845,6 +1902,9 @@ window.REF = {
 
       case 'showhold': {
         if (!HELD.length) { say('No held orders.'); break; }
+        // Only on the way IN. Pressing Held again while already in the held
+        // pass must not overwrite the normal position with a held one.
+        if (mode !== 'held') resumeAt = { i: index, s: segIndex };
         mode = 'held';
         var first = step(-1, 1);
         if (first === -1) { mode = 'normal'; updateHoldUI(); say('No held orders.'); break; }
