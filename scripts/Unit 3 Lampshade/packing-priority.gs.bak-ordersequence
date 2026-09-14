@@ -81,15 +81,6 @@ function ppProductType(sku, name) {
   // does NOT extend to WCB / WCCY / WCD, which were not named.
   if (s.indexOf('WCWD') === 0) return 'SHADE';
 
-  // THE REST OF THE WC FAMILY - wire and glass cages: WCB, WCCY, WCD, WCFS.
-  // Ruled 2026-09-11: packed IMMEDIATELY AFTER Lampshade, ahead of everything
-  // else. They used to fall through to OTHER and were packed last. A type of
-  // their own rather than SHADE, because the 2026-08-14 ruling that WC cages are
-  // not lampshades still governs COLLECTION (which is prefix-based and never
-  // reads this type). WCWD keeps its lampshade ruling - the test above wins.
-  // Same rule as the hub Speak Tool (speak_tool_html_sheet_UI/engine.js).
-  if (s.indexOf('WC') === 0) return 'CAGE';
-
   if (s.indexOf('LD') === 0) return 'BULB';   // bulbs whose name omits "bulb"/"wats"
   return 'OTHER';
 }
@@ -313,11 +304,8 @@ function ppProductImage(sku) {
 // the pack list relative to the other accessories. Measured on the 13 live pack
 // lists: 25 of 155 orders move, all of them "rose steps behind the bulb".
 // Bulb is THIRD, ahead of Other, in both tables.
-// CAGE (WC) sits between SHADE and BULB in both tables - ruled 2026-09-11. The
-// numbers shifted to make room; every relative position already agreed is kept,
-// including ROSE tying with OTHER.
-var PP_RANK_WITH_RECT = { RECT_ROSE: 1, SHADE: 2, CAGE: 3, BULB: 4, ROSE: 5, OTHER: 5 };
-var PP_RANK_NO_RECT   = { SHADE: 1, CAGE: 2, BULB: 3, ROSE: 4, OTHER: 4 };
+var PP_RANK_WITH_RECT = { RECT_ROSE: 1, SHADE: 2, BULB: 3, ROSE: 4, OTHER: 4 };
+var PP_RANK_NO_RECT   = { SHADE: 1, BULB: 3, ROSE: 4, OTHER: 4 };
 
 /**
  * @param {string} type      one of SHADE / RECT_ROSE / ROSE / BULB / OTHER
@@ -325,9 +313,7 @@ var PP_RANK_NO_RECT   = { SHADE: 1, CAGE: 2, BULB: 3, ROSE: 4, OTHER: 4 };
  */
 function ppRank(type, hasRect) {
   var map = hasRect ? PP_RANK_WITH_RECT : PP_RANK_NO_RECT;
-  // The table's own OTHER, not a literal 4: after the renumbering 4 is BULB in
-  // the rect table, and an unknown type would have outranked a rose.
-  return map[type] || map.OTHER;
+  return map[type] || 4;
 }
 
 /**
@@ -376,7 +362,7 @@ function ppRank(type, hasRect) {
  * @param {number} typeIdx             column index of "Product Type"
  * @return {number} how many rows changed position
  */
-function ppApplyPackingPriority(rows, customerIdx, postcodeIdx, typeIdx, mergeIdx, skuCombIdx) {
+function ppApplyPackingPriority(rows, customerIdx, postcodeIdx, typeIdx) {
   if (!rows || !rows.length || typeIdx < 0 || customerIdx < 0) return 0;
 
   var moved = 0;
@@ -393,20 +379,6 @@ function ppApplyPackingPriority(rows, customerIdx, postcodeIdx, typeIdx, mergeId
 
     if (i - start > 1) {
       var slice = rows.slice(start, i);
-
-      // A MERGE ORDER is handled by ppSequenceMergeOrder(): priority per
-      // sub-order, then the sub-orders themselves put in priority order. It
-      // returns null for anything that is not one complete merge, which then
-      // takes the per-order path below exactly as before.
-      var merged = ppSequenceMergeOrder(slice, typeIdx, mergeIdx, skuCombIdx);
-      if (merged) {
-        for (var mk = 0; mk < merged.length; mk++) {
-          if (merged[mk] !== slice[mk]) moved++;
-          rows[start + mk] = merged[mk];
-        }
-        start = i;
-        continue;
-      }
 
       // Which ranking applies is decided PER ORDER, before sorting it: does this
       // order contain a Rectangle Ceiling Rose? Scanning the whole block first
@@ -443,97 +415,6 @@ function ppApplyPackingPriority(rows, customerIdx, postcodeIdx, typeIdx, mergeId
 }
 
 /**
- * MERGE ORDER - priority per sub-order, and the sub-orders in priority order.
- * Ruled 2026-09-11 / 2026-09-14. Same rules as the hub Speak Tool
- * (speak_tool_html_sheet_UI/engine.js, parseDoc + sequenceSubOrders).
- *
- * A merge is one customer's run whose rows all share one non-empty SKU Combined
- * (mergeAdjacentRowsAndRepeat). Inside it, a row with a Merge Order label OPENS a
- * sub-order and the unlabelled rows after it are that sub-order's combo
- * components - mergeAndCleanSheets() labels exactly the rows with <= 1 component.
- *
- *   1. Each sub-order is sorted on its OWN contents, so "does this order hold a
- *      Rectangle Ceiling Rose?" is answered per sub-order. The whole merge used
- *      to be sorted flat, so a later sub-order's lampshade was spoken inside an
- *      earlier one.
- *   2. The sub-orders are then sequenced by priority. Key: the sub-order's
- *      product ranks from PP_RANK_WITH_RECT, best first, compared position by
- *      position; a full tie keeps sheet order.
- *          Order 1 Bulb + Holder [4,5]   Order 2 Rect Rose + ... [1,5]
- *          Order 3 Lampshade + Rose [2,5]   Order 4 Lampshade + Rect Rose [1,2]
- *          spoken  Order 4 -> Order 2 -> Order 3 -> Order 1
- *   3. TYPE 3: a sub-order with no Lampshade/Ceiling Rose keeps its own row
- *      order, and a merge with none anywhere keeps its sub-order sequence.
- *
- * The Merge Order label is spoken as the first words of its row, so it follows
- * the SEQUENCE: the first spoken sub-order opens with the first label text
- * ("merge order total: N : merge order: 1"), the second with the second, and so
- * on. The label texts themselves are reused, never rewritten.
- *
- * @return {Array<Array>|null} the reordered rows, or null when `slice` is not one
- *         complete merge (caller then uses the per-order sort unchanged).
- */
-function ppSequenceMergeOrder(slice, typeIdx, mergeIdx, skuCombIdx) {
-  if (mergeIdx == null || skuCombIdx == null || mergeIdx < 0 || skuCombIdx < 0) return null;
-
-  function label(r) { return r[mergeIdx] == null ? '' : String(r[mergeIdx]).trim(); }
-  var comb = slice[0][skuCombIdx] == null ? '' : String(slice[0][skuCombIdx]).trim();
-  if (!comb || !label(slice[0])) return null;
-  for (var c = 0; c < slice.length; c++) {
-    if ((slice[c][skuCombIdx] == null ? '' : String(slice[c][skuCombIdx]).trim()) !== comb) return null;
-  }
-
-  // split into sub-orders at each labelled row
-  var subs = [], labels = [];
-  for (var r = 0; r < slice.length; r++) {
-    if (label(slice[r])) { subs.push([]); labels.push(label(slice[r])); }
-    subs[subs.length - 1].push(slice[r]);
-  }
-
-  function anchorOf(rowsIn) {
-    var a = { rect: false, anchor: false };
-    for (var h = 0; h < rowsIn.length; h++) {
-      var ty = rowsIn[h][typeIdx];
-      if (ty === 'RECT_ROSE') { a.rect = true; a.anchor = true; }
-      else if (ty === 'SHADE' || ty === 'ROSE') { a.anchor = true; }
-    }
-    return a;
-  }
-
-  // 1. each sub-order on its own contents (same rule as the per-order sort)
-  subs = subs.map(function (sub) {
-    var a = anchorOf(sub);
-    if (!a.anchor) return sub.slice();
-    return sub.map(function (row, idx) { return { row: row, idx: idx, rank: ppRank(row[typeIdx], a.rect) }; })
-              .sort(function (x, y) { return x.rank - y.rank || x.idx - y.idx; })
-              .map(function (d) { return d.row; });
-  });
-
-  // 2. sequence the sub-orders - unless no sub-order has an anchor (TYPE 3)
-  if (subs.length > 1 && anchorOf(slice).anchor) {
-    subs = subs.map(function (sub, idx) {
-      var key = sub.map(function (row) { return PP_RANK_WITH_RECT[row[typeIdx]] || PP_RANK_WITH_RECT.OTHER; })
-                   .sort(function (x, y) { return x - y; });
-      return { sub: sub, idx: idx, key: key };
-    }).sort(function (x, y) {
-      for (var k = 0; k < Math.max(x.key.length, y.key.length); k++) {
-        var p = k < x.key.length ? x.key[k] : Infinity, q = k < y.key.length ? y.key[k] : Infinity;
-        if (p !== q) return p < q ? -1 : 1;
-      }
-      return x.idx - y.idx;
-    }).map(function (d) { return d.sub; });
-  }
-
-  // labels follow the spoken sequence: clear, then stamp each sub-order's first row
-  var out = [];
-  subs.forEach(function (sub, n) {
-    sub.forEach(function (row, j) { row[mergeIdx] = (j === 0) ? labels[n] : ''; });
-    out = out.concat(sub);
-  });
-  return out;
-}
-
-/**
  * Applies the packing priority to the "Cleaned Data" sheet in place.
  *
  * This runs as the LAST step of mergeAndCleanSheets(), after addCombinedSKUSet().
@@ -564,11 +445,7 @@ function ppSortCleanedSheetRows(sheet) {
   // postcode on one row of each order and blanked it on the rest, so keying on
   // it would cut a single order into several one-row blocks and the sort would
   // do nothing. Customer Info alone is the order identity at this stage.
-  // Merge Order and SKU Combined let a merge be sorted per sub-order and
-  // sequenced by priority (ppSequenceMergeOrder). Either missing -> merges fall
-  // back to the per-order sort exactly as before.
-  var moved = ppApplyPackingPriority(rows, custIdx, -1, typeIdx,
-                                     headers.indexOf('Merge Order'), headers.indexOf('SKU Combined'));
+  var moved = ppApplyPackingPriority(rows, custIdx, -1, typeIdx);
   if (moved) sheet.getRange(2, 1, rows.length, lastCol).setValues(rows);
   return moved;
 }

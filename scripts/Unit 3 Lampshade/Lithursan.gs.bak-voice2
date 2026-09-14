@@ -953,18 +953,6 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       const displays = ${displaysStr};
       const qrTexts = ${qrTextsStr};
       const postcodeTexts = ${postcodeTextsStr};
-      /* BUILD STAMP.
-       *
-       * Console line numbers from the floor did not match ANY file in the repo:
-       * the same three log statements landed 273, 297 and 362 lines apart from
-       * where this file puts them, so the code in the Apps Script editor was a
-       * hand-edited version that exists nowhere else. Three rounds of fixes were
-       * tested against a file that was never running.
-       *
-       * This prints first. If the banner below is not the one in the console,
-       * the editor is out of date and nothing else in the log means anything. */
-      console.log("%c Speak Tool build U3L-20260825-267db6 ", "background:#0F6E76;color:#fff;font-weight:bold");
-
       var index = 0, paused = false, isSpeaking = false;
       // Position WITHIN the current order. A combo is read one component at a
       // time and only advances when the packer asks for the next one, so they can
@@ -1707,45 +1695,14 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       function micSuspendForSpeech()  { /* mic stays open - see header note */ }
       function micResumeAfterSpeech() { /* mic never closed - nothing to resume */ }
 
-      /* Echo guard.
-       *
-       * WHAT WAS WRONG: the old guard suppressed "postcode" only while
-       * synth.speaking was true. A final recognition result arrives AFTER the
-       * audio that produced it, so by the time it was tested the tool had
-       * usually stopped talking and the guard passed. Captured on 2026-08-24:
-       *
-       *   RAW VOICE: "1 m curvy holller black instruction you are available
-       *               postcode"    -> fired the postcode command
-       *
-       * That is the tool reading an order and then triggering itself.
-       *
-       * WHY THE MIC IS STILL NOT STOPPED DURING SPEECH: closing it was the
-       * original Unit 3 defect. The packer could not say "next" over the top of
-       * a long order, which is FB-046, FB-047, FB-055 and the "getting tired
-       * from it" report. Unit 4 has never closed its microphone and has never
-       * had that complaint. Stopping it here would trade a fixed bug for a
-       * returning one.
-       *
-       * WHAT IT DOES INSTEAD: compares the transcript with the text on screen -
-       * the exact words being spoken, already maintained by updateSegmentUI().
-       * If most of a multi-word transcript is made of those words, it came from
-       * the speaker, not the packer. A command is one or two words that never
-       * appear in a product name, so "next" said mid-sentence still gets
-       * through - which is the whole point. */
-      function isSelfEcho(action, text) {
-        if (action === "postcode" && synth.speaking) return true;
-
-        var said = String((spokenTextDiv && spokenTextDiv.innerText) || "").toLowerCase();
-        if (!said || !text) return false;
-
-        var words = String(text).split(" ").filter(function (x) { return x.length > 2; });
-        if (words.length < 3) return false;          // a real command is short
-
-        var hits = 0;
-        for (var i = 0; i < words.length; i++) {
-          if (said.indexOf(words[i]) !== -1) hits++;
-        }
-        return (hits / words.length) >= 0.5;         // mostly our own words
+      // Echo guard. Listening through our own speech means the recogniser can
+      // pick up the tool's voice as well as the packer's. In practice only one
+      // command word is ever spoken aloud by the tool - ":Post Code:" - so that
+      // is the only one suppressed, and only while audio is actually playing.
+      // "next", "back", "repeat" and "restart" stay live at all times, which is
+      // the entire point of the change.
+      function isSelfEcho(action) {
+        return action === "postcode" && synth.speaking;
       }
 
       // ---- Volume strength meter -------------------------------------------
@@ -1832,14 +1789,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       // Order matters: "restart"/"start" is tested before "again" so that
       // "start again" resolves to restart, matching the previous behaviour.
       var VOICE_COMMANDS = [
-        /* "re tart", "po tcode", "re ume".
-         *
-         * These are NOT the code corrupting the transcript - normalizeTranscript
-         * was tested against every command word and changes none of them
-         * ("restart" -> "restart"). They are what Chrome genuinely returns: it
-         * splits the word and drops the /s/. Verified against the 9,729
-         * catalogue strings at ZERO collisions, so they are safe to accept. */
-        { action: "restart",  re: /\b(restart|start)\b|\bre ?tart\b/ },
+        { action: "restart",  re: /\b(restart|start)\b/ },
         { action: "next",     re: /\b(next|forward)\b|\bgo on\b|\bgo next\b/ },
         /* "back" IS THE PROBLEM WORD, not the back handler.
          *
@@ -1875,7 +1825,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
          *     them off the order they are packing.
          * "PO" on its own is NOT accepted - two letters is far too little to
          * act on, and it would fire on any spelled-out postcode. */
-        { action: "postcode", re: /\bpost ?code\b|\bpost ?card\b|\b(postcard|poscode|postco|pocket)\b|\bpo ?tcode\b|\bpo ?tcard\b|\bpo code\b|\bpo card\b/ },
+        { action: "postcode", re: /\bpost ?code\b|\bpost ?card\b|\b(postcard|poscode|postco|pocket)\b/ },
         /* Pause and Resume were reachable ONLY by the button: togglePause() is
          * wired to onclick and appeared nowhere in this table, so a packer with
          * both hands in a box could start the tool talking and never stop it.
@@ -1883,14 +1833,8 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
          *
          * "resume" and "unpause" only - not "continue" or "carry on", which are
          * ordinary speech and would stop a pause the packer meant to keep. */
-        /* "stop" is the word a packer actually reaches for, and it was not in
-         * the table at all - only "pause" was. Zero catalogue collisions.
-         *
-         * Bare "top" (Chrome dropping the /s/) is accepted ONLY as the whole
-         * transcript: "top" appears inside "Top Cage Net Black", which the tool
-         * reads out loud, so an unanchored match would pause the run mid-order. */
-        { action: "pause",    re: /\b(pause|stop)\b|^top$/ },
-        { action: "resume",   re: /\b(resume|unpause)\b|\bre ?ume\b/ }
+        { action: "pause",    re: /\bpause\b/ },
+        { action: "resume",   re: /\b(resume|unpause)\b/ }
       ];
 
       // Finds the command the packer just said inside a transcript that may also
@@ -1954,22 +1898,14 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
 
             var raw  = event.results[i][0].transcript;
             var text = normalizeTranscript(raw);
-            /* Three separate lines on purpose. "Heard: next" followed by "no
-             * command" tells you a command was lost but not WHERE, and that
-             * ambiguity is what made the last three rounds guesswork. RAW shows
-             * what Chrome returned, NORMALIZED shows what the cleaner did to it,
-             * MATCHED shows the matcher's verdict. */
-            console.log("RAW VOICE:", JSON.stringify(raw));
-            console.log("NORMALIZED:", JSON.stringify(text));
             console.log("Heard:", text);
             voiceFeedbackDiv.innerText = "Heard: " + text;
 
             var action = matchCommand(text);
-            console.log("MATCHED ACTION:", action);
             // Logged either way: on the packing floor the only way to tell
             // "not heard" from "heard but not matched" is to see this line.
             if (!action) { console.log("  no command in transcript"); continue; }
-            if (isSelfEcho(action, text)) { console.log("  ignored '" + action + "' - that was the tool's own speech"); continue; }
+            if (isSelfEcho(action)) { console.log("  ignored '" + action + "' - tool is speaking"); continue; }
 
             // De-duplicate: the same command inside 1s is one utterance,
             // not two. Different commands are never blocked.

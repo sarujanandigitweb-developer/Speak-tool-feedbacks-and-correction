@@ -20,7 +20,7 @@ function readRowAndSpeak() {
   const colIndex = {};
   const neededColumns = [
     "SKU", "Name", "Quantity", "Post Code", "Selling Platform",
-    "Instruction QR", "Image URLs", "Title", "Price", "Customer Info", 
+    "Instruction QR", "Image URLs", "Title", "Price", "Customer Info",
     "Combo SKU", "Status", "Merge Order", "Component", "Send Order Instruction",
     "SKU Combined"
   ];
@@ -115,7 +115,7 @@ function readRowAndSpeak() {
   // batch covers only the next few orders or the whole pack list, because that
   // decides whether they will be back at the shelf shortly.
   function collectionScopeLabel(mode) {
-    if (mode === "RUN")  return "These orders only";
+    if (mode === "RUN") return "These orders only";
     if (mode === "FULL") return "Whole pack list";
     return "";
   }
@@ -125,32 +125,32 @@ function readRowAndSpeak() {
       const img = collectionImageFor(it.sku);
       const imgHtml = img
         ? '<img src="' + img + '" alt="' + it.sku + '" style="width:100%; height:170px;'
-          + ' object-fit:contain; background:#fff; border-radius:10px; display:block;"'
-          + ' onerror="this.onerror=null;this.src=\'https://via.placeholder.com/170?text=No+Image\';" />'
+        + ' object-fit:contain; background:#fff; border-radius:10px; display:block;"'
+        + ' onerror="this.onerror=null;this.src=\'https://via.placeholder.com/170?text=No+Image\';" />'
         : '<div style="width:100%; height:170px; background:#fff; border-radius:10px;'
-          + ' display:flex; align-items:center; justify-content:center; color:#b9a88f;'
-          + ' font-size:15px;">No image</div>';
+        + ' display:flex; align-items:center; justify-content:center; color:#b9a88f;'
+        + ' font-size:15px;">No image</div>';
 
       return '<div style="flex:0 0 232px; background:#fffdf8; border:2px solid #e0c9a4;'
-           + ' border-radius:14px; padding:12px; text-align:left; box-shadow:0 2px 5px rgba(0,0,0,.08);">'
-           // image with the quantity badge sitting on it - the number the packer acts on
-           + '<div style="position:relative;">'
-           +   imgHtml
-           +   '<div style="position:absolute; top:6px; right:6px; background:#b45f06; color:#fff;'
-           +   ' min-width:42px; height:42px; border-radius:21px; display:flex; align-items:center;'
-           +   ' justify-content:center; font-size:24px; font-weight:bold; padding:0 8px;'
-           +   ' box-shadow:0 2px 5px rgba(0,0,0,.3);">' + it.qty + '</div>'
-           + '</div>'
-           + '<div style="font-size:19px; font-weight:bold; color:#3b2a12; margin-top:10px;'
-           + ' word-break:break-all;">' + it.sku + '</div>'
-           + '<div style="font-size:17px; color:#5a2d03; margin-top:3px;">' + it.colour + '</div>'
-           // Cage shades carry no millimetre size, so the line is omitted rather
-           // than left as an empty grey strip under the colour.
-           + (it.size ? '<div style="font-size:16px; color:#7a6a55; margin-top:2px;">' + it.size + '</div>' : '')
-           + '<div style="margin-top:8px; background:#f3e3c8; border-radius:8px; padding:5px 8px;'
-           + ' font-size:18px; font-weight:bold; color:#8a4405;">Take ' + it.qty + '</div>'
-           + '<div style="font-size:13px; color:#9a8a75; margin-top:6px;">' + it.order + '</div>'
-           + '</div>';
+        + ' border-radius:14px; padding:12px; text-align:left; box-shadow:0 2px 5px rgba(0,0,0,.08);">'
+        // image with the quantity badge sitting on it - the number the packer acts on
+        + '<div style="position:relative;">'
+        + imgHtml
+        + '<div style="position:absolute; top:6px; right:6px; background:#b45f06; color:#fff;'
+        + ' min-width:42px; height:42px; border-radius:21px; display:flex; align-items:center;'
+        + ' justify-content:center; font-size:24px; font-weight:bold; padding:0 8px;'
+        + ' box-shadow:0 2px 5px rgba(0,0,0,.3);">' + it.qty + '</div>'
+        + '</div>'
+        + '<div style="font-size:19px; font-weight:bold; color:#3b2a12; margin-top:10px;'
+        + ' word-break:break-all;">' + it.sku + '</div>'
+        + '<div style="font-size:17px; color:#5a2d03; margin-top:3px;">' + it.colour + '</div>'
+        // Cage shades carry no millimetre size, so the line is omitted rather
+        // than left as an empty grey strip under the colour.
+        + (it.size ? '<div style="font-size:16px; color:#7a6a55; margin-top:2px;">' + it.size + '</div>' : '')
+        + '<div style="margin-top:8px; background:#f3e3c8; border-radius:8px; padding:5px 8px;'
+        + ' font-size:18px; font-weight:bold; color:#8a4405;">Take ' + it.qty + '</div>'
+        + '<div style="font-size:13px; color:#9a8a75; margin-top:6px;">' + it.order + '</div>'
+        + '</div>';
     }).join("");
   }
 
@@ -161,22 +161,22 @@ function readRowAndSpeak() {
     const sections = batches.map(function (b, i) {
       const scope = collectionScopeLabel(b.mode);
       return '<div style="' + (i ? 'margin-top:22px; padding-top:20px; border-top:3px dashed #e0c9a4;' : '') + '">'
-           + '<div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center;'
-           + ' gap:12px; margin:0 0 14px;">'
-           +   '<span style="font-size:22px; font-weight:bold; color:#5a2d03;">Collection Batch ' + b.batch + '</span>'
-           + (scope
-               ? '<span style="font-size:15px; font-weight:bold; color:#8a4405; background:#f3e3c8;'
-                 + ' border-radius:99px; padding:4px 14px;">' + scope + '</span>'
-               : '')
-           +   '<span style="font-size:18px; font-weight:bold; color:#5a2d03;">' + b.total + ' / ' + b.max + '</span>'
-           + '</div>'
-           + '<div style="display:flex; flex-wrap:wrap; gap:16px; justify-content:center;">'
-           + buildCollectionCards(b.items) + '</div>'
-           + (b.overflow
-               ? '<div style="text-align:center; color:#a01c10; font-weight:bold; margin-top:8px;">'
-                 + 'This order alone exceeds the limit</div>'
-               : '')
-           + '</div>';
+        + '<div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center;'
+        + ' gap:12px; margin:0 0 14px;">'
+        + '<span style="font-size:22px; font-weight:bold; color:#5a2d03;">Collection Batch ' + b.batch + '</span>'
+        + (scope
+          ? '<span style="font-size:15px; font-weight:bold; color:#8a4405; background:#f3e3c8;'
+          + ' border-radius:99px; padding:4px 14px;">' + scope + '</span>'
+          : '')
+        + '<span style="font-size:18px; font-weight:bold; color:#5a2d03;">' + b.total + ' / ' + b.max + '</span>'
+        + '</div>'
+        + '<div style="display:flex; flex-wrap:wrap; gap:16px; justify-content:center;">'
+        + buildCollectionCards(b.items) + '</div>'
+        + (b.overflow
+          ? '<div style="text-align:center; color:#a01c10; font-weight:bold; margin-top:8px;">'
+          + 'This order alone exceeds the limit</div>'
+          : '')
+        + '</div>';
     }).join("");
 
     // Two batches means two trips to two different places, so the heading says how
@@ -189,14 +189,14 @@ function readRowAndSpeak() {
     // the full height of the panel. Without it the beige card ran to the bottom
     // of the screen with a large empty area under COLLECTION COMPLETE.
     return '<div style="font-family: sans-serif; max-width:2100px; margin:0 auto;'
-         + ' align-self:flex-start; border:4px solid #b45f06;'
-         + ' background:#fff6e8; border-radius:16px; padding:24px 28px;">'
-         + '<div style="font-size:30px; font-weight:bold; color:#8a4405; text-align:center;'
-         + ' margin-bottom:16px;">' + heading + '</div>'
-         + sections
-         + '<div style="margin-top:20px; text-align:center; background:#b45f06; color:#fff; font-size:20px;'
-         + ' font-weight:bold; border-radius:10px; padding:12px;">COLLECTION COMPLETE &mdash; press Next</div>'
-         + '</div>';
+      + ' align-self:flex-start; border:4px solid #b45f06;'
+      + ' background:#fff6e8; border-radius:16px; padding:24px 28px;">'
+      + '<div style="font-size:30px; font-weight:bold; color:#8a4405; text-align:center;'
+      + ' margin-bottom:16px;">' + heading + '</div>'
+      + sections
+      + '<div style="margin-top:20px; text-align:center; background:#b45f06; color:#fff; font-size:20px;'
+      + ' font-weight:bold; border-radius:10px; padding:12px;">COLLECTION COMPLETE &mdash; press Next</div>'
+      + '</div>';
   }
 
   // Pushes the collection as its OWN queue entry, immediately BEFORE the order
@@ -270,7 +270,7 @@ function readRowAndSpeak() {
 
   // Process rows in sheet order
   const processedIndices = new Set();
-  
+
   dataRange.forEach((row, idx) => {
     if (processedIndices.has(idx)) {
       return; // Already processed as part of a group
@@ -278,39 +278,39 @@ function readRowAndSpeak() {
 
     const gk = groupKeyOf(row);
     const groupKey = gk.label;          // what the card prints
-    const groupId  = gk.key;            // combined SKU + customer
+    const groupId = gk.key;            // combined SKU + customer
 
     if (groupId !== "" && combinedGroups[groupId]) {
       // This is a grouped row - process entire group
       const group = combinedGroups[groupId];
-      
+
       // Mark all rows in this group as processed
       group.forEach(item => processedIndices.add(item.index));
 
       // Get data from first row for display purposes
       const firstRow = group[0].row;
-      
+
       // Find postcode AND QR from any row in the group that has them
       let postCode = "";
       let qr = "";
       for (let i = 0; i < group.length; i++) {
-        const rowPostCode = (group[i].row[colIndex["Post Code"]] === null || 
-                             group[i].row[colIndex["Post Code"]] === undefined || 
-                             group[i].row[colIndex["Post Code"]] === "") 
+        const rowPostCode = (group[i].row[colIndex["Post Code"]] === null ||
+          group[i].row[colIndex["Post Code"]] === undefined ||
+          group[i].row[colIndex["Post Code"]] === "")
           ? "" : group[i].row[colIndex["Post Code"]].toString();
         const rowQr = (group[i].row[colIndex["Instruction QR"]] || "").toString().trim();
-        
+
         if (postCode === "" && rowPostCode !== "") {
           postCode = rowPostCode;
         }
         if (qr === "" && rowQr !== "" && rowQr.toLowerCase() !== "no instruction qr") {
           qr = rowQr;
         }
-        
+
         // If both found, no need to continue
         if (postCode !== "" && qr !== "") break;
       }
-      
+
       const platform = (firstRow[colIndex["Selling Platform"]] || "").toString();
       const imageUrl = firstRow[colIndex["Image URLs"]] || "";
       const title = (firstRow[colIndex["Title"]] || "").toString().trim();
@@ -391,13 +391,13 @@ function readRowAndSpeak() {
       // rowImages. The card shows the count for the component being spoken RIGHT
       // NOW, so the packer reads one number and picks it.
       const rowQtys = [];
-      
+
       group.forEach((item, groupIdx) => {
         const groupRow = item.row;
         const mergeOrder = (groupRow[colIndex["Merge Order"]] || "").toString().trim();
-        const name = (groupRow[colIndex["Name"]] === null || groupRow[colIndex["Name"]] === undefined || groupRow[colIndex["Name"]] === "") 
+        const name = (groupRow[colIndex["Name"]] === null || groupRow[colIndex["Name"]] === undefined || groupRow[colIndex["Name"]] === "")
           ? "" : groupRow[colIndex["Name"]].toString();
-        const quantity = (groupRow[colIndex["Quantity"]] === null || groupRow[colIndex["Quantity"]] === undefined || groupRow[colIndex["Quantity"]] === "") 
+        const quantity = (groupRow[colIndex["Quantity"]] === null || groupRow[colIndex["Quantity"]] === undefined || groupRow[colIndex["Quantity"]] === "")
           ? "" : groupRow[colIndex["Quantity"]].toString();
         const rowImageUrl = groupRow[colIndex["Image URLs"]] || "";
 
@@ -429,7 +429,7 @@ function readRowAndSpeak() {
         rowImages.push(rowImageUrl);
         rowQtys.push(quantity);
       });
-      
+
       // Postcode, then note. Both are spoken as part of the LAST component's
       // step, NOT as steps of their own — the packer should not have to press
       // Next again just to hear where the parcel is going. Reading order is
@@ -488,9 +488,9 @@ function readRowAndSpeak() {
               <p class="oc-lab">Title</p>
               <p class="oc-title">${title}</p>
               <p class="oc-name">${group.map(g => {
-                const n = g.row[colIndex["Name"]];
-                return n ? n.toString() : "";
-              }).filter(n => n).join(" + ")}</p>
+        const n = g.row[colIndex["Name"]];
+        return n ? n.toString() : "";
+      }).filter(n => n).join(" + ")}</p>
               <div class="oc-chips">
                 <span class="chip">${platform || "&nbsp;"}</span>
                 ${qr !== "" ? '<span class="chip chip-alert">' + qr + '</span>' : ""}
@@ -512,9 +512,9 @@ function readRowAndSpeak() {
           </div>
           <div class="oc-foot">
             <div class="oc-foot-qty">${group.map(g => {
-                const qty = g.row[colIndex["Quantity"]];
-                return qty ? "&times; " + qty.toString() : "";
-              }).filter(q => q).join(" &nbsp;+&nbsp; ")}</div>
+        const qty = g.row[colIndex["Quantity"]];
+        return qty ? "&times; " + qty.toString() : "";
+      }).filter(q => q).join(" &nbsp;+&nbsp; ")}</div>
             <div class="oc-foot-sku">${groupKey}</div>
           </div>
         </div>`;
@@ -953,18 +953,6 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       const displays = ${displaysStr};
       const qrTexts = ${qrTextsStr};
       const postcodeTexts = ${postcodeTextsStr};
-      /* BUILD STAMP.
-       *
-       * Console line numbers from the floor did not match ANY file in the repo:
-       * the same three log statements landed 273, 297 and 362 lines apart from
-       * where this file puts them, so the code in the Apps Script editor was a
-       * hand-edited version that exists nowhere else. Three rounds of fixes were
-       * tested against a file that was never running.
-       *
-       * This prints first. If the banner below is not the one in the console,
-       * the editor is out of date and nothing else in the log means anything. */
-      console.log("%c Speak Tool build U3L-20260825-267db6 ", "background:#0F6E76;color:#fff;font-weight:bold");
-
       var index = 0, paused = false, isSpeaking = false;
       // Position WITHIN the current order. A combo is read one component at a
       // time and only advances when the packer asks for the next one, so they can
@@ -1707,45 +1695,14 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       function micSuspendForSpeech()  { /* mic stays open - see header note */ }
       function micResumeAfterSpeech() { /* mic never closed - nothing to resume */ }
 
-      /* Echo guard.
-       *
-       * WHAT WAS WRONG: the old guard suppressed "postcode" only while
-       * synth.speaking was true. A final recognition result arrives AFTER the
-       * audio that produced it, so by the time it was tested the tool had
-       * usually stopped talking and the guard passed. Captured on 2026-08-24:
-       *
-       *   RAW VOICE: "1 m curvy holller black instruction you are available
-       *               postcode"    -> fired the postcode command
-       *
-       * That is the tool reading an order and then triggering itself.
-       *
-       * WHY THE MIC IS STILL NOT STOPPED DURING SPEECH: closing it was the
-       * original Unit 3 defect. The packer could not say "next" over the top of
-       * a long order, which is FB-046, FB-047, FB-055 and the "getting tired
-       * from it" report. Unit 4 has never closed its microphone and has never
-       * had that complaint. Stopping it here would trade a fixed bug for a
-       * returning one.
-       *
-       * WHAT IT DOES INSTEAD: compares the transcript with the text on screen -
-       * the exact words being spoken, already maintained by updateSegmentUI().
-       * If most of a multi-word transcript is made of those words, it came from
-       * the speaker, not the packer. A command is one or two words that never
-       * appear in a product name, so "next" said mid-sentence still gets
-       * through - which is the whole point. */
-      function isSelfEcho(action, text) {
-        if (action === "postcode" && synth.speaking) return true;
-
-        var said = String((spokenTextDiv && spokenTextDiv.innerText) || "").toLowerCase();
-        if (!said || !text) return false;
-
-        var words = String(text).split(" ").filter(function (x) { return x.length > 2; });
-        if (words.length < 3) return false;          // a real command is short
-
-        var hits = 0;
-        for (var i = 0; i < words.length; i++) {
-          if (said.indexOf(words[i]) !== -1) hits++;
-        }
-        return (hits / words.length) >= 0.5;         // mostly our own words
+      // Echo guard. Listening through our own speech means the recogniser can
+      // pick up the tool's voice as well as the packer's. In practice only one
+      // command word is ever spoken aloud by the tool - ":Post Code:" - so that
+      // is the only one suppressed, and only while audio is actually playing.
+      // "next", "back", "repeat" and "restart" stay live at all times, which is
+      // the entire point of the change.
+      function isSelfEcho(action) {
+        return action === "postcode" && synth.speaking;
       }
 
       // ---- Volume strength meter -------------------------------------------
@@ -1820,26 +1777,22 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       }
 
       // --- transcript normalisation (case, punctuation, whitespace) ---
-      function normalizeTranscript(t) {
-        return String(t || "")
-          .toLowerCase()
-          .replace(/[.,!?;:]+/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      }
+     function normalizeTranscript(text) {
+  if (!text) return "";
+
+  return String(text)
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[.,!?;:]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
       // --- command vocabulary (unchanged set, matched on word boundaries) ---
       // Order matters: "restart"/"start" is tested before "again" so that
       // "start again" resolves to restart, matching the previous behaviour.
       var VOICE_COMMANDS = [
-        /* "re tart", "po tcode", "re ume".
-         *
-         * These are NOT the code corrupting the transcript - normalizeTranscript
-         * was tested against every command word and changes none of them
-         * ("restart" -> "restart"). They are what Chrome genuinely returns: it
-         * splits the word and drops the /s/. Verified against the 9,729
-         * catalogue strings at ZERO collisions, so they are safe to accept. */
-        { action: "restart",  re: /\b(restart|start)\b|\bre ?tart\b/ },
+        { action: "restart",  re: /\b(restart|start)\b/ },
         { action: "next",     re: /\b(next|forward)\b|\bgo on\b|\bgo next\b/ },
         /* "back" IS THE PROBLEM WORD, not the back handler.
          *
@@ -1875,7 +1828,7 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
          *     them off the order they are packing.
          * "PO" on its own is NOT accepted - two letters is far too little to
          * act on, and it would fire on any spelled-out postcode. */
-        { action: "postcode", re: /\bpost ?code\b|\bpost ?card\b|\b(postcard|poscode|postco|pocket)\b|\bpo ?tcode\b|\bpo ?tcard\b|\bpo code\b|\bpo card\b/ },
+        { action: "postcode", re: /\bpost ?code\b|\bpost ?card\b|\b(postcard|poscode|postco|pocket)\b/ },
         /* Pause and Resume were reachable ONLY by the button: togglePause() is
          * wired to onclick and appeared nowhere in this table, so a packer with
          * both hands in a box could start the tool talking and never stop it.
@@ -1883,14 +1836,8 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
          *
          * "resume" and "unpause" only - not "continue" or "carry on", which are
          * ordinary speech and would stop a pause the packer meant to keep. */
-        /* "stop" is the word a packer actually reaches for, and it was not in
-         * the table at all - only "pause" was. Zero catalogue collisions.
-         *
-         * Bare "top" (Chrome dropping the /s/) is accepted ONLY as the whole
-         * transcript: "top" appears inside "Top Cage Net Black", which the tool
-         * reads out loud, so an unanchored match would pause the run mid-order. */
-        { action: "pause",    re: /\b(pause|stop)\b|^top$/ },
-        { action: "resume",   re: /\b(resume|unpause)\b|\bre ?ume\b/ }
+        { action: "pause",    re: /\bpause\b/ },
+        { action: "resume",   re: /\b(resume|unpause)\b/ }
       ];
 
       // Finds the command the packer just said inside a transcript that may also
@@ -1913,21 +1860,99 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       // LAST one wins: the tool's speech is always transcribed before whatever
       // the packer says on top of it, so the latest match is the live command.
       function matchCommand(text) {
-        if (!text) return null;
+  if (!text) return null;
 
-        // "start again" is one instruction, not "start" followed by "again".
-        // Collapsing it first keeps it resolving to restart under last-match-wins.
-        text = text.replace(/\bstart again\b/g, "restart");
+  text = normalizeTranscript(text);
 
-        var best = null, bestAt = -1;
-        for (var i = 0; i < VOICE_COMMANDS.length; i++) {
-          var re = new RegExp(VOICE_COMMANDS[i].re.source, "g");
-          var m, at = -1;
-          while ((m = re.exec(text)) !== null) at = m.index;
-          if (at > bestAt) { bestAt = at; best = VOICE_COMMANDS[i].action; }
-        }
-        return best;
-      }
+  // Keep "start again" as restart
+  text = text.replace(/\bstart again\b/g, "restart");
+
+  // Simple direct matching - same reliable approach
+  // as the working Google Sheet.
+
+  if (
+    text.includes("next") ||
+    text.includes("forward") ||
+    text.includes("go on") ||
+    text.includes("go next")
+  ) {
+    return "next";
+  }
+
+  if (
+    text.includes("back") ||
+    text.includes("hack") ||
+    text.includes("bak") ||
+    text.includes("buck") ||
+    text.includes("rack") ||
+    text.includes("previous") ||
+    text.includes("prev")
+  ) {
+    return "back";
+  }
+
+  if (
+    text.includes("respeak") ||
+    text.includes("again") ||
+    text.includes("repeat")
+  ) {
+    return "respeak";
+  }
+
+  if (
+    text.includes("postcode") ||
+    text.includes("post code") ||
+    text.includes("postcard") ||
+    text.includes("post card") ||
+    text.includes("poscode") ||
+    text.includes("postco") ||
+    text.includes("pocket")
+  ) {
+    return "postcode";
+  }
+
+  if (text.includes("pause")) {
+    return "pause";
+  }
+
+  if (
+    text.includes("resume") ||
+    text.includes("unpause")
+  ) {
+    return "resume";
+  }
+
+  // STOP
+  if (text === "stop" || text.includes("stop")) {
+    return "pause";
+  }
+
+  if (
+    text.includes("postcode") ||
+    text.includes("post code") ||
+    text.includes("po tcode") ||
+    text.includes("po code") ||
+    text.includes("postcard") ||
+    text.includes("po tcard") ||
+    text.includes("post card") ||
+    text.includes("po card") ||
+    text.includes("poscode") ||
+    text.includes("postco") ||
+    text.includes("pocket")
+  ) {
+    return "postcode";
+  }
+
+  if (
+    text.includes("restart") ||
+    text.includes("start again")
+  ) {
+    return "restart";
+  }
+
+
+  return null;
+}
 
       if (!SpeechRecognition) {
         micFatalError = "not supported in this browser (use Chrome)";
@@ -1949,44 +1974,70 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
         recognition.onspeechend   = function () { refreshMicUI(); };
 
         recognition.onresult = function (event) {
-          for (var i = event.resultIndex; i < event.results.length; i++) {
-            if (!event.results[i].isFinal) continue;
+  for (var i = event.resultIndex; i < event.results.length; i++) {
+    if (!event.results[i].isFinal) continue;
 
-            var raw  = event.results[i][0].transcript;
-            var text = normalizeTranscript(raw);
-            /* Three separate lines on purpose. "Heard: next" followed by "no
-             * command" tells you a command was lost but not WHERE, and that
-             * ambiguity is what made the last three rounds guesswork. RAW shows
-             * what Chrome returned, NORMALIZED shows what the cleaner did to it,
-             * MATCHED shows the matcher's verdict. */
-            console.log("RAW VOICE:", JSON.stringify(raw));
-            console.log("NORMALIZED:", JSON.stringify(text));
-            console.log("Heard:", text);
-            voiceFeedbackDiv.innerText = "Heard: " + text;
+    var raw = event.results[i][0].transcript;
 
-            var action = matchCommand(text);
-            console.log("MATCHED ACTION:", action);
-            // Logged either way: on the packing floor the only way to tell
-            // "not heard" from "heard but not matched" is to see this line.
-            if (!action) { console.log("  no command in transcript"); continue; }
-            if (isSelfEcho(action, text)) { console.log("  ignored '" + action + "' - that was the tool's own speech"); continue; }
+    console.log("RAW VOICE:", JSON.stringify(raw));
 
-            // De-duplicate: the same command inside 1s is one utterance,
-            // not two. Different commands are never blocked.
-            var now = new Date().getTime();
-            if (action === lastCommand && (now - lastCommandTime) < 1000) {
-              console.log("Duplicate '" + action + "' ignored");
-              continue;
-            }
-            lastCommand = action;
-            lastCommandTime = now;
+    var text = normalizeTranscript(raw);
 
-            setMicState("processing", "Heard \u201c" + action + "\u201d");
-            showLoading(action);
-            controlSpeech(action);      // the SAME handler the buttons use
-            micFlush();                 // drop the audio this command came from
-          }
-        };
+    console.log("NORMALIZED VOICE:", JSON.stringify(text));
+
+    var action = matchCommand(text);
+
+    // Direct fallback for "next".
+    // The manual Next button already uses controlSpeech("next"),
+    // so make sure the exact voice word reaches the same handler.
+    if (!action && text === "next") {
+      action = "next";
+    }
+
+    console.log("MATCHED ACTION:", action);
+
+    voiceFeedbackDiv.innerText = "Heard: " + text;
+
+    if (!action) {
+      console.log("  no command in transcript");
+      continue;
+    }
+
+    if (isSelfEcho(action)) {
+      console.log(
+        "  ignored '" + action + "' - tool is speaking"
+      );
+      continue;
+    }
+
+    // De-duplicate: the same command inside 1s is one utterance.
+    var now = new Date().getTime();
+
+    if (
+      action === lastCommand &&
+      (now - lastCommandTime) < 1000
+    ) {
+      console.log("Duplicate '" + action + "' ignored");
+      continue;
+    }
+
+    lastCommand = action;
+    lastCommandTime = now;
+
+    setMicState(
+      "processing",
+      "Heard \u201c" + action + "\u201d"
+    );
+
+    showLoading(action);
+
+    // SAME handler used by the manual buttons
+    controlSpeech(action);
+
+    // Clear the recognition result after the command
+    micFlush();
+  }
+};
 
         recognition.onerror = function (event) {
           var err = event && event.error ? event.error : "unknown";

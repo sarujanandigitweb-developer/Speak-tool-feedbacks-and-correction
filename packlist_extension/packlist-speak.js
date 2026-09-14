@@ -72,6 +72,21 @@ window.REF = {
     // collected. Sits AFTER the rose test, exactly like the LS rule, and does
     // NOT extend to the other WC* cages - only WCWD was named.
     if (s.indexOf('WCWD')===0) return 'SHADE';
+    /* THE REST OF THE WC FAMILY - wire and glass cages: WCB, WCCY, WCD, WCFS.
+     *
+     * These used to fall through to OTHER and were therefore packed LAST, level
+     * with the accessories. Ruled 2026-09-11: a cage belongs with the shades,
+     * so WC is packed IMMEDIATELY AFTER Lampshade and ahead of everything else.
+     *
+     * A separate type rather than reusing SHADE, because the 2026-08-14 ruling
+     * that "the WC* wire cages are NOT lampshades" still stands - it governs
+     * what goes into a lampshade COLLECTION, which is a different question from
+     * what order things are packed in. Only WCWD was ever named a lampshade,
+     * and it keeps that (the test above wins, being checked first).
+     *
+     * Measured on the 13 live pack lists: 28 SKUs move up out of OTHER, the
+     * 4 WCWD are unaffected. */
+    if (s.indexOf('WC')===0) return 'CAGE';
     if (s.indexOf('LD')===0) return 'BULB';
     return 'OTHER';
   }
@@ -140,9 +155,21 @@ window.REF = {
 
      Type 3 - neither a Lampshade nor a Ceiling Rose - is handled in
      applyPriority(): no ranking is applied at all. */
-  var RANK_RECT = {RECT_ROSE:1, SHADE:2, BULB:3, ROSE:4, OTHER:4};
-  var RANK_PLAIN= {SHADE:1, BULB:3, ROSE:4, OTHER:4};
-  function rank(type, hasRect){ return (hasRect?RANK_RECT:RANK_PLAIN)[type] || 4; }
+  /* CAGE sits between SHADE and BULB in both tables - "immediately after
+     Lampshade", ruled 2026-09-11. The numbers shifted down to make room; every
+     RELATIVE position that was already agreed is unchanged:
+         Rect Rose before Shade, Shade before Bulb, Bulb before Rose/Other,
+         and ROSE still TIES with OTHER so the stable sort keeps a plain rose
+         in its pack-list position. */
+  var RANK_RECT = {RECT_ROSE:1, SHADE:2, CAGE:3, BULB:4, ROSE:5, OTHER:5};
+  var RANK_PLAIN= {SHADE:1, CAGE:2, BULB:3, ROSE:4, OTHER:4};
+  /* Falls back to the table's OWN "Other" value, not a hard-coded 4. With the
+     renumbering above, 4 is BULB in RANK_RECT - a literal would have ranked an
+     unknown type AHEAD of a rose. */
+  function rank(type, hasRect){
+    var map = hasRect ? RANK_RECT : RANK_PLAIN;
+    return map[type] || map.OTHER;
+  }
 
   /* TYPE 3 - the branch that was missing.
      "If there is no Lampshade and no Ceiling Rose, do not apply any filter.
@@ -170,6 +197,51 @@ window.REF = {
       .map(function(x){ return x.l; });
   }
 
+  /* ---- ORDER-LEVEL PRIORITY for a merge order ------------------------------
+     Ruled 2026-09-14. The sub-orders of a merge all go into ONE large pack, so
+     WHICH sub-order is spoken first is decided by packing priority too:
+
+       Order 1  Bulb + Holder          ranks [4,5]
+       Order 2  Rect Rose + ...        ranks [1,5]
+       Order 3  Lampshade + Rose       ranks [2,5]
+       Order 4  Lampshade + Rect Rose  ranks [1,2]
+       spoken   Order 4 -> Order 2 -> Order 3 -> Order 1
+
+     Key: the sub-order's product ranks, best first, read from the SAME table
+     applyPriority() uses (RANK_RECT - a superset whose relative order of the
+     other types is identical to RANK_PLAIN). Sub-orders are compared position
+     by position, so Order 4 beats Order 2: both open with a Rect Rose, and
+     Order 4's next product is a Lampshade. A full tie keeps pack-list order.
+
+     Each block arrives ALREADY sorted by applyPriority(); this only chooses
+     the sequence of blocks and never reorders anything inside one.
+
+     TYPE 3 at merge level: if no sub-order holds a Lampshade or any Ceiling
+     Rose, nothing is reordered - the same rule applyPriority() follows for one
+     order. Measured on the 13 live pack lists: 5 of 27 merges change sequence;
+     single orders (one block) cannot be affected. */
+  function orderKey(block){
+    return block.map(function(l){ return RANK_RECT[l.type] || RANK_RECT.OTHER; })
+                .sort(function(a,b){ return a-b; });
+  }
+  function compareOrderKeys(a,b){
+    for (var i=0; i<Math.max(a.length,b.length); i++){
+      // a sub-order that has run out of products ranks after one that has not
+      var x = i<a.length ? a[i] : Infinity, y = i<b.length ? b[i] : Infinity;
+      if (x!==y) return x<y ? -1 : 1;
+    }
+    return 0;
+  }
+  function sequenceSubOrders(blocks){
+    var list = blocks.filter(function(b){ return b.length; });
+    var all  = [].concat.apply([], list);
+    if (list.length<2 || !hasPriorityAnchor(all)) return all;   // one order, or Type 3
+    return [].concat.apply([], list
+      .map(function(b,i){ return {b:b, i:i, k:orderKey(b)}; })
+      .sort(function(x,y){ return compareOrderKeys(x.k,y.k) || x.i-y.i; })   // stable
+      .map(function(x){ return x.b; }));
+  }
+
   /* ---- parse one pack list document --------------------------------------
      Selectors are the dashboard's own classes, as used by speak_tool/app.py and
      re-verified against 17 saved pack lists. */
@@ -185,10 +257,33 @@ window.REF = {
       var platform = txt(node.querySelector('div.bg-light.border'));
       var price    = txt(node.querySelector('div.text-end span span:nth-child(2)'));
 
-      var lines=[];
+      /* PRIORITY IS APPLIED INSIDE EACH SUB-ORDER, NOT ACROSS THE MERGE.
+         ------------------------------------------------------------------
+         One  div.p-1[id$='-li']  is ONE sub-order: "1126617-0-li" and
+         "1126617-1-li" are two line items merged into a single parcel. Every
+         component of both used to be poured into one flat array and sorted in
+         one pass, so a later sub-order's lampshade jumped into the middle of an
+         earlier one. Live example, 1.html:
+
+           sub-orders  [PHSHF1PBRYB LSCY290BG LDMST64E274] [PHCH1FBRBM LSHQ180BG]
+           was         LSCY290BG  LSHQ180BG  LDMST64E274  PHSHF1PBRYB  PHCH1FBRBM
+                                  ^ sub-order 2's shade, spoken inside sub-order 1
+           now         LSCY290BG  LDMST64E274  PHSHF1PBRYB | LSHQ180BG  PHCH1FBRBM
+
+         Each block is ranked on its OWN contents, so "does this order hold a
+         Rectangle Ceiling Rose?" is answered per sub-order, and the blocks are
+         appended in pack-list order. Measured on the 13 live pack lists: 11 of
+         155 orders were interleaved this way.
+
+         NO merge test is needed. All 27 multi-block orders in those pack lists
+         are merge-tagged and NO single-order is - a block boundary IS a
+         sub-order boundary. A normal order has exactly one block, where sorting
+         it alone is identical to what this did before. */
+      var lines=[], blocks=[];
       var prods=node.querySelectorAll("div.p-1[id$='-li']");
       for (var pi=0; pi<prods.length; pi++){
         var pd=prods[pi];
+        var blockLines=[];
         var title = txt(pd.querySelector('div.fw-bold.border-bottom span, div.fw-bold.border-bottom a span'));
         var parent= txt(pd.querySelector("span[onclick^='copyText']"));
         var qty   = readQty(pd);
@@ -205,7 +300,7 @@ window.REF = {
             var t=it.querySelectorAll('div.text-center div.small');
             var cq=it.querySelector('span.alert');
             var csku = t.length>0 ? txt(t[0]) : '';
-            lines.push(makeLine({
+            blockLines.push(makeLine({
               sku:csku, combined:parent, title:title, link:link,
               colourRaw: t.length>1 ? txt(t[1]) : '',
               qty: cq ? Number(String(txt(cq)).replace(/[^0-9.]/g,''))||adj : adj,
@@ -217,10 +312,13 @@ window.REF = {
           }
         } else {
           // Non-combo product: its own SKU, and no combined string.
-          lines.push(makeLine({sku:parent, combined:'', title:title, link:link,
+          blockLines.push(makeLine({sku:parent, combined:'', title:title, link:link,
                                colourRaw:'', qty:adj, img:mainImg, imgEl:mainImgEl}));
         }
+        // Ranked within this sub-order; the order of the sub-orders is chosen below.
+        blocks.push(applyPriority(blockLines));
       }
+      lines = sequenceSubOrders(blocks);
       if (!lines.length) continue;
 
       orders.push({
@@ -229,7 +327,7 @@ window.REF = {
         // it, so the page moves with the speech. Never serialised - persist()
         // copies named fields only, so this cannot reach JSON.stringify.
         node:node,
-        source:sourceName||'', lines:applyPriority(lines),
+        source:sourceName||'', lines:lines,
         // Fields the pack list does NOT carry. They exist only because the team
         // types them in, so the tool owns them now instead of a spreadsheet.
         note:'', status:'', instructionQr:''
@@ -975,10 +1073,32 @@ window.REF = {
       'box-shadow:0 -2px 14px rgba(0,0,0,.34);padding:9px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}',
     '#stx-bar.stx-min{padding:5px 14px}',
     '#stx-bar.stx-min .stx-hideable{display:none}',
+    /* WHY THE BUTTONS USED TO MOVE.
+     *
+     * The bar is flex-wrap:wrap and every control was a DIRECT flex item, so
+     * they wrapped one at a time wherever the line happened to run out. The two
+     * elements to their left change width on every order:
+     *
+     *   #stx-pos  "Order 14 of 155 · Item 1 of 2 · file 2"   38 chars
+     *             "Collection · Item 1 of 1"                 24 chars
+     *   #stx-say  flex-basis 260px - refused to shrink below that
+     *
+     * That ~100px swing moved the wrap point, and whichever buttons sat near it
+     * hopped between rows. Zoom and Voice changed rows purely because the text
+     * to their left got shorter - captured in two screenshots of the same bar.
+     *
+     * min-width:0 lets #stx-pos shrink rather than push, and basis 0 lets
+     * #stx-say take only what is left over. The text now absorbs every bit of
+     * variation, so nothing downstream of it moves. */
     '#stx-pos{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#8FA3B5;',
-      'font-variant-numeric:tabular-nums;white-space:nowrap}',
-    '#stx-say{flex:1 1 260px;min-width:0;font-size:16px;font-weight:600;line-height:1.35;',
+      'font-variant-numeric:tabular-nums;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}',
+    '#stx-say{flex:1 1 0;min-width:0;font-size:16px;font-weight:600;line-height:1.35;',
       'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    /* A control group is ONE flex item, and never wraps inside itself. The bar
+       can still drop a whole group to a second row on a narrow window, but the
+       buttons keep their positions relative to each other either way - a packer
+       reaching for Next always finds it in the same place. */
+    '.stx-grp{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:nowrap}',
     '#stx-bar button{font-size:14px;font-weight:500;color:#EAF0F5;background:#243040;border:1px solid #3A4A5E;',
       'border-radius:5px;padding:8px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin:0}',
     '#stx-bar button:hover{background:#2E3D50;border-color:#54677E}',
@@ -1035,7 +1155,18 @@ window.REF = {
       'box-shadow:0 10px 34px rgba(0,0,0,.5);display:none;min-width:260px}',
     '#stx-set.on{display:block}',
     '#stx-set h4{margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.1em;',
-      'text-transform:uppercase;color:#8FA3B5}',
+      'text-transform:uppercase;color:#8FA3B5;',
+      /* The heading becomes the panel's title bar so the close control has a
+         home, instead of floating over the first field. */
+      'display:flex;align-items:center;justify-content:space-between;gap:14px}',
+    /* Sized for a gloved hand, not a mouse pointer: 26px square, which is the
+       smallest this bench has been happy with on the other controls. */
+    '#stx-set .stx-x{font-family:inherit;font-size:17px;line-height:1;color:#8FA3B5;',
+      'background:transparent;border:1px solid transparent;border-radius:6px;',
+      'width:26px;height:26px;padding:0;margin:-4px -5px -4px 0;cursor:pointer;',
+      'display:inline-flex;align-items:center;justify-content:center;flex:none}',
+    '#stx-set .stx-x:hover{color:#EAF0F5;background:#243040;border-color:#3A4A5E}',
+    '#stx-set .stx-x:focus-visible{outline:2px solid #4FB0C6;outline-offset:1px}',
     '.stx-f{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}',
     '.stx-f:last-child{margin-bottom:0}',
     '.stx-f label{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:#8FA3B5}',
@@ -1162,7 +1293,7 @@ window.REF = {
       // only in the message that scrolls past when the pass ends.
       '<span id="stx-status">—</span>' +
         '<span id="stx-say"></span>' +
-        '<span class="stx-hideable" style="display:contents">' +
+        '<span class="stx-grp">' +
           '<button type="button" data-act="restart">\u{1F501} Restart</button>' +
           '<button type="button" data-act="back">⏮ Back</button>' +
           '<button type="button" data-act="postcode">\u{1F4CD} Postcode</button>' +
@@ -1173,14 +1304,39 @@ window.REF = {
           '<button type="button" id="stx-heldbtn" class="stx-empty" data-act="showhold" title="Show the held orders">\u{1F4CB} Held (0)</button>' +
         '</span>' +
         '<span class="stx-spacer"></span>' +
-        '<button type="button" class="stx-hideable" data-act="zoom" id="stx-zoombtn">\u{1F50D} Zoom on</button>' +
-        '<button type="button" class="stx-hideable" data-act="settings" id="stx-setbtn" title="Language, voice and speed">\u2699 Voice</button>' +
-        '<button type="button" class="stx-hideable" data-act="mic">\u{1F3A4} Mic</button>' +
-        '<span id="stx-mic" class="stx-hideable"><span class="stx-dot"></span>' +
-          '<span class="stx-bars" id="stx-level" title="Microphone level">' +
-            '<i></i><i></i><i></i><i></i><i></i><i></i></span>' +
-          '<span id="stx-mic-t">Starting</span></span>' +
-        '<button type="button" data-act="fold" title="Collapse the bar">▾</button>' +
+        /* Grouped with a CLASS, not an inline style, on purpose: the fold rule
+           "#stx-bar.stx-min .stx-hideable{display:none}" is id+class+class and
+           still outranks .stx-grp, so collapsing the bar hides these four exactly
+           as it did when they were loose. The fold arrow stays outside so it is
+           always reachable. */
+        /* THE FOLD ARROW TRAVELS WITH THE GROUP IT SITS NEXT TO.
+           -------------------------------------------------------
+           It used to be a LOOSE flex item after the group, which made it the
+           last thing on the line and therefore the first thing to wrap. On this
+           machine the bar had room for it; inside the Varmen AIOS iframe the
+           page adds its own chrome, the bar is a few dozen pixels narrower, and
+           that was enough to drop the arrow - and ONLY the arrow - onto a second
+           row on its own. Same build, same code, different width.
+
+           Wrapping both in one .stx-grp makes them a single flex item, so they
+           move together or not at all. The width where the bar breaks is no
+           longer a coin toss between two nearly-identical numbers.
+
+           The inner span keeps .stx-hideable so collapsing still hides the four
+           controls, and the arrow stays outside it so it is always reachable -
+           exactly as before. */
+        '<span class="stx-grp">' +
+          '<span class="stx-hideable stx-grp">' +
+            '<button type="button" class="stx-hideable" data-act="zoom" id="stx-zoombtn">\u{1F50D} Zoom on</button>' +
+            '<button type="button" class="stx-hideable" data-act="settings" id="stx-setbtn" title="Language, voice and speed">\u2699 Voice</button>' +
+            '<button type="button" class="stx-hideable" data-act="mic">\u{1F3A4} Mic</button>' +
+            '<span id="stx-mic" class="stx-hideable"><span class="stx-dot"></span>' +
+              '<span class="stx-bars" id="stx-level" title="Microphone level">' +
+                '<i></i><i></i><i></i><i></i><i></i><i></i></span>' +
+              '<span id="stx-mic-t">Starting</span></span>' +
+          '</span>' +
+          '<button type="button" data-act="fold" title="Collapse the bar">▾</button>' +
+        '</span>' +
       '</div>';
     // Language / voice / speed, carried over from the Google Sheet build. Kept in
     // a panel rather than on the bar: they are set once at the start of a shift,
@@ -1188,7 +1344,14 @@ window.REF = {
     var set = d.createElement('div');
     set.id = 'stx-set';
     set.innerHTML =
-      '<h4>Voice settings</h4>' +
+      /* Closes by TOGGLING, using the same data-act the Voice button carries.
+         The bar's existing click handler already maps 'settings' to
+         classList.toggle('on'), so the panel gets a close control without a new
+         handler and without touching anything that already works. */
+      '<h4>Voice settings' +
+        '<button type="button" class="stx-x" data-act="settings" ' +
+        'title="Close voice settings" aria-label="Close voice settings">\u00D7</button>' +
+      '</h4>' +
       '<div class="stx-f"><label for="stx-lang">Speaking language</label><select id="stx-lang"></select></div>' +
       // Which accent the MICROPHONE is matched against. Separate from the
       // speaking voice above - they are two different engines.
@@ -1566,10 +1729,21 @@ window.REF = {
      ========================================================================= */
   var lastActive = null;
 
-  function focusOrder(node) {
+  /* skipScroll: the caller has a better target than the whole order.
+   *
+   * A merge order's node is tall - several product rows plus a component grid -
+   * and block:'center' centres the NODE, which pushes the individual component
+   * being spoken off the top or bottom of the screen. The packer then has to
+   * scroll to find the item they are hearing. When the current line has its own
+   * element, render() scrolls to that instead and passes true here so the two
+   * scrolls do not fight each other.
+   *
+   * The highlight is unaffected either way. */
+  function focusOrder(node, skipScroll) {
     if (lastActive) { lastActive.classList.remove('stx-active'); lastActive = null; }
     if (!node) return;
     if (STX.highlight) { node.classList.add('stx-active'); lastActive = node; }
+    if (skipScroll) return;
     // Scrolling is a convenience; it must never be able to stop the packing.
     // The old version called scrollIntoView() again inside its own catch, so an
     // engine without the method threw a second time, uncaught - which killed
@@ -1582,9 +1756,34 @@ window.REF = {
     }
   }
 
+  /* Brings the component being spoken into view.
+   *
+   * Every parsed line already carries imgEl - the real <img> for that component
+   * on the pack list page (engine.js sets it from the row's own element). So
+   * there is a precise target available and nothing new has to be built or
+   * marked up.
+   *
+   * Scrolling is a convenience and must never stop the packing, so this copies
+   * focusOrder's defensive shape exactly: check the method exists, and if the
+   * options form throws, fall back to the plain call inside its own try. */
+  function scrollToLine(el) {
+    if (!el || typeof el.scrollIntoView !== 'function') return;
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    catch (e) {
+      try { el.scrollIntoView(); } catch (e2) { /* not scrollable - carry on */ }
+    }
+  }
+
   function render() {
     var e = QUEUE[index];
     if (!e) return;
+
+    /* segments() moved above the branch below so the current line's element is
+       known before anything scrolls. It is a pure read of QUEUE[index], so
+       calling it here rather than five lines down changes nothing. */
+    var segs = segments();
+    var lineEl = (e.kind === 'order' && segs[segIndex] && segs[segIndex].line)
+      ? segs[segIndex].line.imgEl : null;
 
     if (e.kind === 'collection') {
       showCollection(e.collection);
@@ -1592,10 +1791,12 @@ window.REF = {
       if (lastActive) { lastActive.classList.remove('stx-active'); lastActive = null; }
     } else {
       hideCollection();
-      focusOrder(e.order.node);
+      // Highlight the order as before; scroll to the exact component when we
+      // have one, otherwise fall back to the old order-level scroll.
+      focusOrder(e.order.node, !!lineEl);
+      if (lineEl) scrollToLine(lineEl);
     }
 
-    var segs = segments();
     rememberPosition();
     updateStatus();          // Remaining count follows the cursor, every order
 

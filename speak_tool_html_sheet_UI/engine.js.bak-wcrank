@@ -44,21 +44,6 @@
     // collected. Sits AFTER the rose test, exactly like the LS rule, and does
     // NOT extend to the other WC* cages - only WCWD was named.
     if (s.indexOf('WCWD')===0) return 'SHADE';
-    /* THE REST OF THE WC FAMILY - wire and glass cages: WCB, WCCY, WCD, WCFS.
-     *
-     * These used to fall through to OTHER and were therefore packed LAST, level
-     * with the accessories. Ruled 2026-09-11: a cage belongs with the shades,
-     * so WC is packed IMMEDIATELY AFTER Lampshade and ahead of everything else.
-     *
-     * A separate type rather than reusing SHADE, because the 2026-08-14 ruling
-     * that "the WC* wire cages are NOT lampshades" still stands - it governs
-     * what goes into a lampshade COLLECTION, which is a different question from
-     * what order things are packed in. Only WCWD was ever named a lampshade,
-     * and it keeps that (the test above wins, being checked first).
-     *
-     * Measured on the 13 live pack lists: 28 SKUs move up out of OTHER, the
-     * 4 WCWD are unaffected. */
-    if (s.indexOf('WC')===0) return 'CAGE';
     if (s.indexOf('LD')===0) return 'BULB';
     return 'OTHER';
   }
@@ -127,21 +112,9 @@
 
      Type 3 - neither a Lampshade nor a Ceiling Rose - is handled in
      applyPriority(): no ranking is applied at all. */
-  /* CAGE sits between SHADE and BULB in both tables - "immediately after
-     Lampshade", ruled 2026-09-11. The numbers shifted down to make room; every
-     RELATIVE position that was already agreed is unchanged:
-         Rect Rose before Shade, Shade before Bulb, Bulb before Rose/Other,
-         and ROSE still TIES with OTHER so the stable sort keeps a plain rose
-         in its pack-list position. */
-  var RANK_RECT = {RECT_ROSE:1, SHADE:2, CAGE:3, BULB:4, ROSE:5, OTHER:5};
-  var RANK_PLAIN= {SHADE:1, CAGE:2, BULB:3, ROSE:4, OTHER:4};
-  /* Falls back to the table's OWN "Other" value, not a hard-coded 4. With the
-     renumbering above, 4 is BULB in RANK_RECT - a literal would have ranked an
-     unknown type AHEAD of a rose. */
-  function rank(type, hasRect){
-    var map = hasRect ? RANK_RECT : RANK_PLAIN;
-    return map[type] || map.OTHER;
-  }
+  var RANK_RECT = {RECT_ROSE:1, SHADE:2, BULB:3, ROSE:4, OTHER:4};
+  var RANK_PLAIN= {SHADE:1, BULB:3, ROSE:4, OTHER:4};
+  function rank(type, hasRect){ return (hasRect?RANK_RECT:RANK_PLAIN)[type] || 4; }
 
   /* TYPE 3 - the branch that was missing.
      "If there is no Lampshade and no Ceiling Rose, do not apply any filter.
@@ -169,51 +142,6 @@
       .map(function(x){ return x.l; });
   }
 
-  /* ---- ORDER-LEVEL PRIORITY for a merge order ------------------------------
-     Ruled 2026-09-14. The sub-orders of a merge all go into ONE large pack, so
-     WHICH sub-order is spoken first is decided by packing priority too:
-
-       Order 1  Bulb + Holder          ranks [4,5]
-       Order 2  Rect Rose + ...        ranks [1,5]
-       Order 3  Lampshade + Rose       ranks [2,5]
-       Order 4  Lampshade + Rect Rose  ranks [1,2]
-       spoken   Order 4 -> Order 2 -> Order 3 -> Order 1
-
-     Key: the sub-order's product ranks, best first, read from the SAME table
-     applyPriority() uses (RANK_RECT - a superset whose relative order of the
-     other types is identical to RANK_PLAIN). Sub-orders are compared position
-     by position, so Order 4 beats Order 2: both open with a Rect Rose, and
-     Order 4's next product is a Lampshade. A full tie keeps pack-list order.
-
-     Each block arrives ALREADY sorted by applyPriority(); this only chooses
-     the sequence of blocks and never reorders anything inside one.
-
-     TYPE 3 at merge level: if no sub-order holds a Lampshade or any Ceiling
-     Rose, nothing is reordered - the same rule applyPriority() follows for one
-     order. Measured on the 13 live pack lists: 5 of 27 merges change sequence;
-     single orders (one block) cannot be affected. */
-  function orderKey(block){
-    return block.map(function(l){ return RANK_RECT[l.type] || RANK_RECT.OTHER; })
-                .sort(function(a,b){ return a-b; });
-  }
-  function compareOrderKeys(a,b){
-    for (var i=0; i<Math.max(a.length,b.length); i++){
-      // a sub-order that has run out of products ranks after one that has not
-      var x = i<a.length ? a[i] : Infinity, y = i<b.length ? b[i] : Infinity;
-      if (x!==y) return x<y ? -1 : 1;
-    }
-    return 0;
-  }
-  function sequenceSubOrders(blocks){
-    var list = blocks.filter(function(b){ return b.length; });
-    var all  = [].concat.apply([], list);
-    if (list.length<2 || !hasPriorityAnchor(all)) return all;   // one order, or Type 3
-    return [].concat.apply([], list
-      .map(function(b,i){ return {b:b, i:i, k:orderKey(b)}; })
-      .sort(function(x,y){ return compareOrderKeys(x.k,y.k) || x.i-y.i; })   // stable
-      .map(function(x){ return x.b; }));
-  }
-
   /* ---- parse one pack list document --------------------------------------
      Selectors are the dashboard's own classes, as used by speak_tool/app.py and
      re-verified against 17 saved pack lists. */
@@ -229,33 +157,10 @@
       var platform = txt(node.querySelector('div.bg-light.border'));
       var price    = txt(node.querySelector('div.text-end span span:nth-child(2)'));
 
-      /* PRIORITY IS APPLIED INSIDE EACH SUB-ORDER, NOT ACROSS THE MERGE.
-         ------------------------------------------------------------------
-         One  div.p-1[id$='-li']  is ONE sub-order: "1126617-0-li" and
-         "1126617-1-li" are two line items merged into a single parcel. Every
-         component of both used to be poured into one flat array and sorted in
-         one pass, so a later sub-order's lampshade jumped into the middle of an
-         earlier one. Live example, 1.html:
-
-           sub-orders  [PHSHF1PBRYB LSCY290BG LDMST64E274] [PHCH1FBRBM LSHQ180BG]
-           was         LSCY290BG  LSHQ180BG  LDMST64E274  PHSHF1PBRYB  PHCH1FBRBM
-                                  ^ sub-order 2's shade, spoken inside sub-order 1
-           now         LSCY290BG  LDMST64E274  PHSHF1PBRYB | LSHQ180BG  PHCH1FBRBM
-
-         Each block is ranked on its OWN contents, so "does this order hold a
-         Rectangle Ceiling Rose?" is answered per sub-order, and the blocks are
-         appended in pack-list order. Measured on the 13 live pack lists: 11 of
-         155 orders were interleaved this way.
-
-         NO merge test is needed. All 27 multi-block orders in those pack lists
-         are merge-tagged and NO single-order is - a block boundary IS a
-         sub-order boundary. A normal order has exactly one block, where sorting
-         it alone is identical to what this did before. */
-      var lines=[], blocks=[];
+      var lines=[];
       var prods=node.querySelectorAll("div.p-1[id$='-li']");
       for (var pi=0; pi<prods.length; pi++){
         var pd=prods[pi];
-        var blockLines=[];
         var title = txt(pd.querySelector('div.fw-bold.border-bottom span, div.fw-bold.border-bottom a span'));
         var parent= txt(pd.querySelector("span[onclick^='copyText']"));
         var qty   = readQty(pd);
@@ -272,7 +177,7 @@
             var t=it.querySelectorAll('div.text-center div.small');
             var cq=it.querySelector('span.alert');
             var csku = t.length>0 ? txt(t[0]) : '';
-            blockLines.push(makeLine({
+            lines.push(makeLine({
               sku:csku, combined:parent, title:title, link:link,
               colourRaw: t.length>1 ? txt(t[1]) : '',
               qty: cq ? Number(String(txt(cq)).replace(/[^0-9.]/g,''))||adj : adj,
@@ -284,13 +189,10 @@
           }
         } else {
           // Non-combo product: its own SKU, and no combined string.
-          blockLines.push(makeLine({sku:parent, combined:'', title:title, link:link,
+          lines.push(makeLine({sku:parent, combined:'', title:title, link:link,
                                colourRaw:'', qty:adj, img:mainImg, imgEl:mainImgEl}));
         }
-        // Ranked within this sub-order; the order of the sub-orders is chosen below.
-        blocks.push(applyPriority(blockLines));
       }
-      lines = sequenceSubOrders(blocks);
       if (!lines.length) continue;
 
       orders.push({
@@ -299,7 +201,7 @@
         // it, so the page moves with the speech. Never serialised - persist()
         // copies named fields only, so this cannot reach JSON.stringify.
         node:node,
-        source:sourceName||'', lines:lines,
+        source:sourceName||'', lines:applyPriority(lines),
         // Fields the pack list does NOT carry. They exist only because the team
         // types them in, so the tool owns them now instead of a spreadsheet.
         note:'', status:'', instructionQr:''

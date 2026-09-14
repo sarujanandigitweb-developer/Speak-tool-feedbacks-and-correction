@@ -953,18 +953,6 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
       const displays = ${displaysStr};
       const qrTexts = ${qrTextsStr};
       const postcodeTexts = ${postcodeTextsStr};
-      /* BUILD STAMP.
-       *
-       * Console line numbers from the floor did not match ANY file in the repo:
-       * the same three log statements landed 273, 297 and 362 lines apart from
-       * where this file puts them, so the code in the Apps Script editor was a
-       * hand-edited version that exists nowhere else. Three rounds of fixes were
-       * tested against a file that was never running.
-       *
-       * This prints first. If the banner below is not the one in the console,
-       * the editor is out of date and nothing else in the log means anything. */
-      console.log("%c Speak Tool build U3L-20260825-267db6 ", "background:#0F6E76;color:#fff;font-weight:bold");
-
       var index = 0, paused = false, isSpeaking = false;
       // Position WITHIN the current order. A combo is read one component at a
       // time and only advances when the packer asks for the next one, so they can
@@ -1954,18 +1942,10 @@ function speakTextDialog(speakTexts, displays, qrTexts, postcodeTexts) {
 
             var raw  = event.results[i][0].transcript;
             var text = normalizeTranscript(raw);
-            /* Three separate lines on purpose. "Heard: next" followed by "no
-             * command" tells you a command was lost but not WHERE, and that
-             * ambiguity is what made the last three rounds guesswork. RAW shows
-             * what Chrome returned, NORMALIZED shows what the cleaner did to it,
-             * MATCHED shows the matcher's verdict. */
-            console.log("RAW VOICE:", JSON.stringify(raw));
-            console.log("NORMALIZED:", JSON.stringify(text));
             console.log("Heard:", text);
             voiceFeedbackDiv.innerText = "Heard: " + text;
 
             var action = matchCommand(text);
-            console.log("MATCHED ACTION:", action);
             // Logged either way: on the packing floor the only way to tell
             // "not heard" from "heard but not matched" is to see this line.
             if (!action) { console.log("  no command in transcript"); continue; }

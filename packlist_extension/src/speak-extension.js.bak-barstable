@@ -213,32 +213,10 @@
       'box-shadow:0 -2px 14px rgba(0,0,0,.34);padding:9px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}',
     '#stx-bar.stx-min{padding:5px 14px}',
     '#stx-bar.stx-min .stx-hideable{display:none}',
-    /* WHY THE BUTTONS USED TO MOVE.
-     *
-     * The bar is flex-wrap:wrap and every control was a DIRECT flex item, so
-     * they wrapped one at a time wherever the line happened to run out. The two
-     * elements to their left change width on every order:
-     *
-     *   #stx-pos  "Order 14 of 155 · Item 1 of 2 · file 2"   38 chars
-     *             "Collection · Item 1 of 1"                 24 chars
-     *   #stx-say  flex-basis 260px - refused to shrink below that
-     *
-     * That ~100px swing moved the wrap point, and whichever buttons sat near it
-     * hopped between rows. Zoom and Voice changed rows purely because the text
-     * to their left got shorter - captured in two screenshots of the same bar.
-     *
-     * min-width:0 lets #stx-pos shrink rather than push, and basis 0 lets
-     * #stx-say take only what is left over. The text now absorbs every bit of
-     * variation, so nothing downstream of it moves. */
     '#stx-pos{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#8FA3B5;',
-      'font-variant-numeric:tabular-nums;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}',
-    '#stx-say{flex:1 1 0;min-width:0;font-size:16px;font-weight:600;line-height:1.35;',
+      'font-variant-numeric:tabular-nums;white-space:nowrap}',
+    '#stx-say{flex:1 1 260px;min-width:0;font-size:16px;font-weight:600;line-height:1.35;',
       'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    /* A control group is ONE flex item, and never wraps inside itself. The bar
-       can still drop a whole group to a second row on a narrow window, but the
-       buttons keep their positions relative to each other either way - a packer
-       reaching for Next always finds it in the same place. */
-    '.stx-grp{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:nowrap}',
     '#stx-bar button{font-size:14px;font-weight:500;color:#EAF0F5;background:#243040;border:1px solid #3A4A5E;',
       'border-radius:5px;padding:8px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin:0}',
     '#stx-bar button:hover{background:#2E3D50;border-color:#54677E}',
@@ -295,18 +273,7 @@
       'box-shadow:0 10px 34px rgba(0,0,0,.5);display:none;min-width:260px}',
     '#stx-set.on{display:block}',
     '#stx-set h4{margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.1em;',
-      'text-transform:uppercase;color:#8FA3B5;',
-      /* The heading becomes the panel's title bar so the close control has a
-         home, instead of floating over the first field. */
-      'display:flex;align-items:center;justify-content:space-between;gap:14px}',
-    /* Sized for a gloved hand, not a mouse pointer: 26px square, which is the
-       smallest this bench has been happy with on the other controls. */
-    '#stx-set .stx-x{font-family:inherit;font-size:17px;line-height:1;color:#8FA3B5;',
-      'background:transparent;border:1px solid transparent;border-radius:6px;',
-      'width:26px;height:26px;padding:0;margin:-4px -5px -4px 0;cursor:pointer;',
-      'display:inline-flex;align-items:center;justify-content:center;flex:none}',
-    '#stx-set .stx-x:hover{color:#EAF0F5;background:#243040;border-color:#3A4A5E}',
-    '#stx-set .stx-x:focus-visible{outline:2px solid #4FB0C6;outline-offset:1px}',
+      'text-transform:uppercase;color:#8FA3B5}',
     '.stx-f{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}',
     '.stx-f:last-child{margin-bottom:0}',
     '.stx-f label{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:#8FA3B5}',
@@ -433,7 +400,7 @@
       // only in the message that scrolls past when the pass ends.
       '<span id="stx-status">—</span>' +
         '<span id="stx-say"></span>' +
-        '<span class="stx-grp">' +
+        '<span class="stx-hideable" style="display:contents">' +
           '<button type="button" data-act="restart">\u{1F501} Restart</button>' +
           '<button type="button" data-act="back">⏮ Back</button>' +
           '<button type="button" data-act="postcode">\u{1F4CD} Postcode</button>' +
@@ -444,39 +411,14 @@
           '<button type="button" id="stx-heldbtn" class="stx-empty" data-act="showhold" title="Show the held orders">\u{1F4CB} Held (0)</button>' +
         '</span>' +
         '<span class="stx-spacer"></span>' +
-        /* Grouped with a CLASS, not an inline style, on purpose: the fold rule
-           "#stx-bar.stx-min .stx-hideable{display:none}" is id+class+class and
-           still outranks .stx-grp, so collapsing the bar hides these four exactly
-           as it did when they were loose. The fold arrow stays outside so it is
-           always reachable. */
-        /* THE FOLD ARROW TRAVELS WITH THE GROUP IT SITS NEXT TO.
-           -------------------------------------------------------
-           It used to be a LOOSE flex item after the group, which made it the
-           last thing on the line and therefore the first thing to wrap. On this
-           machine the bar had room for it; inside the Varmen AIOS iframe the
-           page adds its own chrome, the bar is a few dozen pixels narrower, and
-           that was enough to drop the arrow - and ONLY the arrow - onto a second
-           row on its own. Same build, same code, different width.
-
-           Wrapping both in one .stx-grp makes them a single flex item, so they
-           move together or not at all. The width where the bar breaks is no
-           longer a coin toss between two nearly-identical numbers.
-
-           The inner span keeps .stx-hideable so collapsing still hides the four
-           controls, and the arrow stays outside it so it is always reachable -
-           exactly as before. */
-        '<span class="stx-grp">' +
-          '<span class="stx-hideable stx-grp">' +
-            '<button type="button" class="stx-hideable" data-act="zoom" id="stx-zoombtn">\u{1F50D} Zoom on</button>' +
-            '<button type="button" class="stx-hideable" data-act="settings" id="stx-setbtn" title="Language, voice and speed">\u2699 Voice</button>' +
-            '<button type="button" class="stx-hideable" data-act="mic">\u{1F3A4} Mic</button>' +
-            '<span id="stx-mic" class="stx-hideable"><span class="stx-dot"></span>' +
-              '<span class="stx-bars" id="stx-level" title="Microphone level">' +
-                '<i></i><i></i><i></i><i></i><i></i><i></i></span>' +
-              '<span id="stx-mic-t">Starting</span></span>' +
-          '</span>' +
-          '<button type="button" data-act="fold" title="Collapse the bar">▾</button>' +
-        '</span>' +
+        '<button type="button" class="stx-hideable" data-act="zoom" id="stx-zoombtn">\u{1F50D} Zoom on</button>' +
+        '<button type="button" class="stx-hideable" data-act="settings" id="stx-setbtn" title="Language, voice and speed">\u2699 Voice</button>' +
+        '<button type="button" class="stx-hideable" data-act="mic">\u{1F3A4} Mic</button>' +
+        '<span id="stx-mic" class="stx-hideable"><span class="stx-dot"></span>' +
+          '<span class="stx-bars" id="stx-level" title="Microphone level">' +
+            '<i></i><i></i><i></i><i></i><i></i><i></i></span>' +
+          '<span id="stx-mic-t">Starting</span></span>' +
+        '<button type="button" data-act="fold" title="Collapse the bar">▾</button>' +
       '</div>';
     // Language / voice / speed, carried over from the Google Sheet build. Kept in
     // a panel rather than on the bar: they are set once at the start of a shift,
@@ -484,14 +426,7 @@
     var set = d.createElement('div');
     set.id = 'stx-set';
     set.innerHTML =
-      /* Closes by TOGGLING, using the same data-act the Voice button carries.
-         The bar's existing click handler already maps 'settings' to
-         classList.toggle('on'), so the panel gets a close control without a new
-         handler and without touching anything that already works. */
-      '<h4>Voice settings' +
-        '<button type="button" class="stx-x" data-act="settings" ' +
-        'title="Close voice settings" aria-label="Close voice settings">\u00D7</button>' +
-      '</h4>' +
+      '<h4>Voice settings</h4>' +
       '<div class="stx-f"><label for="stx-lang">Speaking language</label><select id="stx-lang"></select></div>' +
       // Which accent the MICROPHONE is matched against. Separate from the
       // speaking voice above - they are two different engines.

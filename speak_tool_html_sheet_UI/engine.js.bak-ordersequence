@@ -169,51 +169,6 @@
       .map(function(x){ return x.l; });
   }
 
-  /* ---- ORDER-LEVEL PRIORITY for a merge order ------------------------------
-     Ruled 2026-09-14. The sub-orders of a merge all go into ONE large pack, so
-     WHICH sub-order is spoken first is decided by packing priority too:
-
-       Order 1  Bulb + Holder          ranks [4,5]
-       Order 2  Rect Rose + ...        ranks [1,5]
-       Order 3  Lampshade + Rose       ranks [2,5]
-       Order 4  Lampshade + Rect Rose  ranks [1,2]
-       spoken   Order 4 -> Order 2 -> Order 3 -> Order 1
-
-     Key: the sub-order's product ranks, best first, read from the SAME table
-     applyPriority() uses (RANK_RECT - a superset whose relative order of the
-     other types is identical to RANK_PLAIN). Sub-orders are compared position
-     by position, so Order 4 beats Order 2: both open with a Rect Rose, and
-     Order 4's next product is a Lampshade. A full tie keeps pack-list order.
-
-     Each block arrives ALREADY sorted by applyPriority(); this only chooses
-     the sequence of blocks and never reorders anything inside one.
-
-     TYPE 3 at merge level: if no sub-order holds a Lampshade or any Ceiling
-     Rose, nothing is reordered - the same rule applyPriority() follows for one
-     order. Measured on the 13 live pack lists: 5 of 27 merges change sequence;
-     single orders (one block) cannot be affected. */
-  function orderKey(block){
-    return block.map(function(l){ return RANK_RECT[l.type] || RANK_RECT.OTHER; })
-                .sort(function(a,b){ return a-b; });
-  }
-  function compareOrderKeys(a,b){
-    for (var i=0; i<Math.max(a.length,b.length); i++){
-      // a sub-order that has run out of products ranks after one that has not
-      var x = i<a.length ? a[i] : Infinity, y = i<b.length ? b[i] : Infinity;
-      if (x!==y) return x<y ? -1 : 1;
-    }
-    return 0;
-  }
-  function sequenceSubOrders(blocks){
-    var list = blocks.filter(function(b){ return b.length; });
-    var all  = [].concat.apply([], list);
-    if (list.length<2 || !hasPriorityAnchor(all)) return all;   // one order, or Type 3
-    return [].concat.apply([], list
-      .map(function(b,i){ return {b:b, i:i, k:orderKey(b)}; })
-      .sort(function(x,y){ return compareOrderKeys(x.k,y.k) || x.i-y.i; })   // stable
-      .map(function(x){ return x.b; }));
-  }
-
   /* ---- parse one pack list document --------------------------------------
      Selectors are the dashboard's own classes, as used by speak_tool/app.py and
      re-verified against 17 saved pack lists. */
@@ -251,7 +206,7 @@
          are merge-tagged and NO single-order is - a block boundary IS a
          sub-order boundary. A normal order has exactly one block, where sorting
          it alone is identical to what this did before. */
-      var lines=[], blocks=[];
+      var lines=[];
       var prods=node.querySelectorAll("div.p-1[id$='-li']");
       for (var pi=0; pi<prods.length; pi++){
         var pd=prods[pi];
@@ -287,10 +242,9 @@
           blockLines.push(makeLine({sku:parent, combined:'', title:title, link:link,
                                colourRaw:'', qty:adj, img:mainImg, imgEl:mainImgEl}));
         }
-        // Ranked within this sub-order; the order of the sub-orders is chosen below.
-        blocks.push(applyPriority(blockLines));
+        // Ranked within this sub-order, then appended - never re-sorted later.
+        lines = lines.concat(applyPriority(blockLines));
       }
-      lines = sequenceSubOrders(blocks);
       if (!lines.length) continue;
 
       orders.push({
