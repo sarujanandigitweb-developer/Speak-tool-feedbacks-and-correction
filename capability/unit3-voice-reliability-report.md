@@ -1,5 +1,7 @@
 # Unit 3 Lampshade — Voice Recognition Reliability & Pause/Resume
 
+> **📌 Dated record — status checked 2026-09-14.** The Unit 3 voice layer described here has been rewritten since (always-on microphone, last-match-wins, accepted mishearings, pause/resume by voice). Current repository behaviour: [03-unit3-lampshade-logic.md §5.3](../documentation/03-unit3-lampshade-logic.md). **The live Unit 3 `Lithursan.gs` differs from the repository** — see the [handover note §3.1](../handover/handover-note.md).
+
 ## Implementation Report
 
 **Status: 🟠 AMBER — root cause fixed, 24/24 automated lifecycle tests pass.

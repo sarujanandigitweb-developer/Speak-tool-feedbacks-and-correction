@@ -1,5 +1,11 @@
 # Apps Script — Code Walkthrough and Confirmed Root Causes
 
+> **📌 Dated record — status checked 2026-09-14.** This walkthrough reviews the **original 1,465-line Unit 3 script as exported on 2026-08-13**. Line numbers refer to that version and no longer match the code.
+>
+> - Most findings have since been fixed or remain open — the current status of each is in [03-unit3-lampshade-logic.md §6](03-unit3-lampshade-logic.md).
+> - **Finding C1 was partly wrong**: `SKU Combined` does *not* become row-misaligned — `removeRPR44WHAndTransferPostCode()` rewrites every column, so the value travels with its row (verified against the live sheet, 2026-08-13). The double write it describes has since been removed. See 03 §6.
+> - For how the code works **today**, read [03-unit3-lampshade-logic.md](03-unit3-lampshade-logic.md).
+
 **Source:** [scripts/](../scripts/) — 5 files, 1,465 lines, exported from the Unit 3
 Lampshade project.
 **Date:** 2026-08-13

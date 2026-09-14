@@ -1,5 +1,13 @@
 # Unit 3 Lampshade — three rule corrections of 2026-08-19
 
+> **📌 Dated record — status checked 2026-09-14.** Accurate for 2026-08-19. Changed since:
+>
+> - **WCB, WCCY, WCD are no longer ranked OTHER** — from 2026-09-11 all `WC*` except `WCWD` rank as a WC cage, immediately after Lampshade. The open item in §4 about them is resolved.
+> - The rank table in §1.2 now includes the WC cage (Rect Rose 1, Lampshade 2, WC 3, Bulb 4, Rose/Other 5; without a Rect Rose: Lampshade 1, WC 2, Bulb 3, Rose/Other 4).
+> - The HTML Speak Tool's collection limit is **10** (2026-08-20); the Sheets tool is still 15.
+>
+> Current rules: [packing-workflow.md](../workflows/packing-workflow.md).
+
 **Author:** Sarujanan · **Date:** 2026-08-19 · **Project:** STFC · **Assigned by:** Varmen
 **Amends:** `validation/unit3-lampshade-collection-rule-2026-08-18.md` (lists and packing ranks only —
 everything else in that document still stands).

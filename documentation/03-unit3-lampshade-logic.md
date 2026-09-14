@@ -1,410 +1,283 @@
-# Unit 3 Lampshade — Complete Logic & Data-Flow Analysis
+# Unit 3 Lampshade — Google Sheets Speak Tool: Logic Reference
 
-**Purpose:** the pre-implementation reference. Every function, every transformation, every cell → UI
-mapping, traced end to end.
+**Last updated:** 2026-09-14 — replaces the 2026-08-13 pre-implementation analysis.
+**Sheet:** [`1AMQMzxu…`](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0)
+**Code:** [`scripts/Unit 3 Lampshade/`](../scripts/Unit%203%20Lampshade/)
+**Reads:** Names Master Sheet [`16rx5Dz…`](https://docs.google.com/spreadsheets/d/16rx5Dz-YYp-GTvRfytjq9e4p6AHw3qYh8Tm9rOPkS6M) (tab `names`) ·
+Lampshade SOT [`1b9n4Rhy…`](https://docs.google.com/spreadsheets/d/1b9n4RhyIEuEyRRQIkfmVlsqc7uazQiqqQXCZKKPwpSI)
 
-**Sheet:** [`1AMQMzxu…`](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0) — `Sheet1` **169 rows × 17 cols** · `Cleaned Data` **140 rows × 18 cols**
-**Code:** [`scripts/Unit 3 Lampshade/`](../scripts/Unit%203%20Lampshade/) — 6 files, 1,766 lines
-**Names master:** `16rx5Dz…` tab `names` — **19,739 rows**, col A = SKU, col B = spoken Name
+Function names are used instead of line numbers, which drift.
 
----
-
-## ⚠️ Correction to my earlier reports — read this first
-
-In [02-code-walkthrough.md](./02-code-walkthrough.md) (finding **C1**) and
-[discovery-report.md](../validation/discovery-report.md) (finding **R2**) I stated that the
-`SKU Combined` column ends up **row-misaligned** after the row-deletion step, and that order grouping
-therefore runs off a corrupted column. **That part was wrong.**
-
-I verified it against the live sheet. `removeRPR44WHAndTransferPostCode()` reads with
-`getDataRange()` — **all 18 columns** — and rewrites all 18 per surviving row, so `SKU Combined`
-travels with its own row. All 8 rows that carry it check out:
-
-| Row | SKU | `SKU Combined` (col R) | Own SKU in group? | Customer |
-|---:|---|---|:---:|---|
-| 49–52 | CRFF100BM · LHNSE27BM · CRFF100CO · LHNSE27CO | `CRFF100BM+LHNSE27BM+CRFF100CO+LHNSE27CO` | ✅ all four | Alan Robinson |
-| 62–63 | LDMST64B224 · LSUL220BB | `LDMST64B224+LSUL220BB+RPR44WH` | ✅ both | Sharon McGrath |
-| 131–132 | RWT460YE · RWT5100YE | `RWT460YE+RWT5100YE` | ✅ both | Stuart Craigie |
-
-**What remains true:**
-
-- The double write is real — cols **P, Q, R are leftovers**, and the duplicate headers come from it.
-- The tool **depends on a column no documented code path writes** (`neededColumns` requires
-  `SKU Combined` and aborts without it).
-- Rows 62–63 expose a **different** bug: the group claims **3** components (`…+RPR44WH`) but only
-  **2** rows survive, because the reducer plate was deleted. The packer is told a 3-part set and
-  shown 2.
-- The wrong-parcel risk is real but lives in **`Combo SKU` (col M)**, not `SKU Combined`.
-
-**Consequence for implementation:** "fix the double write first" is **no longer a blocker** for the
-grouping work. It is hygiene. The customer-collision bug stands on its own and is the real priority.
+> ⚠️ **The repo is not guaranteed to match the live Apps Script.** The live `Lithursan.gs` voice layer
+> differs from this folder (see [handover §3.1](../handover/handover-note.md#31-the-live-unit-3-lithursangs-is-not-in-this-repository-)),
+> and the 2026-09-14 `packing-priority.gs` has not been pasted live. This document describes **the
+> repository**.
 
 ---
 
-## 1. File inventory — and a collision that decides which code runs
+## 1. Files
 
-| File | Lines | Functions defined |
+| File | Lines | What it does |
 |---|---:|---|
-| `action.gs` | 6 | `onOpen` |
-| `clean-1.gs` | 301 | `mergeAndCleanSheets`, `keepOnlyLastOccurrenceInD`, `keepOnlyLastOccurrenceInE`, `clearFIfDIsEmptyInSheet`, `addCombinedSKUSet`, `removeRPR44WHAndTransferPostCode` |
-| `cleaned.gs` | 296 | `onOpen` **+ the same six** |
-| `Lithursan.gs` | 948 | `readRowAndSpeak`, `speakTextDialog` |
-| `Merge SKU.gs` | 59 | `mergeAdjacentRowsAndRepeat` |
-| `sku.gs` | 156 | `blankDuplicateSKUsInSheet1`, `addProductNamesFromSKU`, `copySKUFromSheet1ToCleanedData` — **none called** |
+| `action.gs` | 6 | `onOpen` — menu with **Speak All Rows** only |
+| `cleaned.gs` | 404 | `onOpen` — menu with **Speak All Rows** and **Run Clean and Merge**; `mergeAndCleanSheets` and its cleaning steps; `addCombinedSKUSet` |
+| `Merge SKU.gs` | 59 | `mergeAdjacentRowsAndRepeat` — writes `SKU Combined` |
+| `packing-priority.gs` | 1,108 | Product type, colour, SOT, packing priority, merge sequencing, lampshade collections |
+| `Lithursan.gs` | 2,089 | `readRowAndSpeak` (builds the queue) and `speakTextDialog` (the modal, speech and voice) |
+| `sku.gs` | 149 | Three helpers — **not called** by any menu or pipeline step |
 
-### 🔴 `clean-1.gs` and `cleaned.gs` define the same six functions
+`*.bak*` and `*.work.now` are local backups from development, not deployed.
 
-Apps Script puts every `.gs` file in **one global scope**. Two definitions of the same name means the
-**last one loaded wins** — and load order follows the file order in the editor, which nobody
-deliberately set. `onOpen` also collides between `action.gs` and `cleaned.gs`.
-
-**This is not a cosmetic duplicate. `clean-1.gs` is a newer, patched version**, and its own comment
-says so:
-
-```js
-// clean-1.gs:208-212
-// Group by "SKU Combined" (adjacency-based, already unique per order) instead
-// of the Merge Order label text. The label (e.g. "merge order total: 2 :
-// merge order: 1") only encodes the item count, so unrelated orders with the
-// same count were colliding into one group here. Fall back to the label only
-// if SKU Combined isn't populated for this row.
-```
-
-That is a **real bug fix** for issue **U3L #21** (*"RMI orderum 2-4 1st orderum merge ahh vanthu
-irukku"*) — unrelated orders merging. The two files are byte-identical apart from `onOpen` and this
-one patch inside `addCombinedSKUSet()`:
-
-| | `cleaned.gs` (old) | `clean-1.gs` (patched) |
-|---|---|---|
-| Merge group key | the **label text** `merge order total: N : merge order: 1` | **`SKU Combined`**, falling back to the label |
-| Effect | two unrelated orders with the same item count collide | each order keeps its own group |
-
-**If `cleaned.gs` loads last, the fix is dead and nobody would know.** Confirm the editor's file order
-before touching anything; then delete the loser.
+**`onOpen` is defined twice** (`action.gs`, `cleaned.gs`). Apps Script keeps the last one loaded. If
+`action.gs` wins, **Run Clean and Merge** disappears from the menu.
 
 ---
 
-## 2. Entry points
+## 2. Pipeline — `mergeAndCleanSheets()` · `cleaned.gs`
 
-```
-Spreadsheet opens
-   └─ onOpen()                              ← action.gs:1  AND  cleaned.gs:1  (collision)
-        └─ menu "🗣 Speak Tool"
-             ├─ "Speak All Rows"      → readRowAndSpeak()     Lithursan.gs:1
-             └─ "Run Clean and Merge" → mergeAndCleanSheets()  cleaned.gs:9 / clean-1.gs:1
-```
+Menu **Run Clean and Merge**. Rebuilds `Cleaned Data` from `Sheet1` every time.
 
-If `action.gs` wins the `onOpen` collision, its menu has **only** "Speak All Rows" — and
-**"Run Clean and Merge" becomes unreachable from the UI**.
+| # | Step | What it does |
+|---:|---|---|
+| 1 | Open Names Master Sheet | `openById("16rx5Dz…")`, tab `names`: col A SKU → col B spoken name. Read live every run |
+| 2 | Recreate `Cleaned Data` | delete and insert |
+| 3 | `mergeAdjacentRowsAndRepeat()` | For consecutive `Sheet1` rows sharing a `Merge Order` value, writes `SKU1+SKU2+…` into **`SKU Combined`**. Only **adjacent** rows group |
+| 4 | Read `SKU Combined` back | one value per `Sheet1` row |
+| 5 | Walk `Sheet1` → `processRow()` | See §2.1 |
+| 6 | `ppStampCollections()` | Fills `Lampshade Collection` + `Lampshade Collection Speech` on the triggering order's first row (§4) |
+| 7 | Write all columns | one `setValues` over the full width — no leftover columns |
+| 8 | `keepOnlyLastOccurrenceInD` | blanks a postcode equal to the **adjacent** row's (hardcoded column 4) |
+| 9 | `keepOnlyLastOccurrenceInE` | same for Selling Platform (column 5) |
+| 10 | `clearFIfDIsEmptyInSheet` | blanks Instruction QR (column 6) where the postcode is blank |
+| 11 | `removeRPR44WHAndTransferPostCode` | deletes `RPR44WH` component rows and moves their postcode to the nearest earlier blank one |
+| 12 | `addCombinedSKUSet()` | Rebuilds `Combo SKU`: merge groups keyed by `SKU Combined`; component sets start at `Combo: 1` and **stop at a customer boundary** |
+| 13 | `ppSortCleanedSheetRows()` | **Packing priority** — must run last (§3) |
 
----
+### 2.1 `processRow()` and merge labels
 
-## 3. Pipeline — `Sheet1` → `Cleaned Data`
+**Merge labels.** Inside a run of `Sheet1` rows sharing a `Merge Order` value, each row with **≤ 1**
+component token opens a sub-order and is labelled `merge order total: N : merge order: 1`, then
+`merge order : 2`, `merge order : 3` … Rows with more tokens are combo continuations and get **no
+label**. The label is spoken as the first words of its row.
 
-`mergeAndCleanSheets()` runs 13 steps. Line numbers are `cleaned.gs`.
+| Field | Rule |
+|---|---|
+| SKU | `SKU`, else `Combo SKU`; trimmed, upper-cased |
+| Name lookup | `rawSku.endsWith("PK") ? rawSku.slice(0, -3) : rawSku` — ⚠️ strips 3 characters for a 2-character suffix; wrong for `…10PK` |
+| Quantity | `Combo Quantity`, else `Quantity`. Blanked **only if there is no name and no SKU** |
+| Cable | SKU starting `CL`: quantity becomes `"<qty> meter"` |
+| Component | `Combo: N`, N = comma-separated token count |
+| Product Type | `ppProductType(rawSku, name)` |
+| Colour | `ppProductColour(rawSku)` — SOT first, then SKU suffix |
 
-```
- :13  open names master by ID (19,739 rows)  ─── live, every run
- :22  delete "Cleaned Data"
- :25  insert fresh "Cleaned Data"
- :30  build skuToName{}  ← names col A → col B
- :38  locate 15 Sheet1 columns by header name
- :56  build outputHeaders (15 names)
- :64  ── mergeAdjacentRowsAndRepeat()  ────────────► writes 18 cols   [STAGE A]
- :68  walk Sheet1 rows → build `output`  (15 cols)                    [STAGE B]
-:153  write `output` over A–O            ── P, Q, R survive untouched
-:155  keepOnlyLastOccurrenceInD()        ── blanks duplicate postcodes
-:156  keepOnlyLastOccurrenceInE()        ── blanks duplicate platforms
-:157  clearFIfDIsEmptyInSheet()          ── blanks QR where postcode blank
-:158  removeRPR44WHAndTransferPostCode() ── deletes rows  169 → 140
-:159  addCombinedSKUSet()                ── rebuilds Combo SKU (col M)
-```
+### 2.2 `Cleaned Data` columns
 
-### STAGE A — `mergeAdjacentRowsAndRepeat()` · `Merge SKU.gs:1`
+`SKU · Name · Quantity · Post Code · Selling Platform · Instruction QR · Image URLs · Merge Order ·
+Component · Title · Price · Customer Info · Combo SKU · Status · Send Order Instruction ·
+SKU Combined · Product Type · Colour · Lampshade Collection · Lampshade Collection Speech`
 
-Writes the `SKU Combined` column.
-
-```js
-:6   cleanedSheet.clear();
-:14  result = [[...Sheet1 headers, "SKU Combined"]];        // 18 columns
-:24  if (mergeOrder && mergeOrder === currentMerge)  → same group
-     else → flush previous group, start new one
-:30  combined = currentGroup.join("+")                       // "SKU1+SKU2+SKU3"
-:58  write result
-```
-
-**Groups only ADJACENT rows** (`:24` compares against `currentMerge`, reset on any break). If a merge
-group's rows are not contiguous in `Sheet1`, it silently splits. Live data: **1 of 35 groups is
-non-adjacent.**
-
-Source column: `Merge Order` — populated on **9 of 169** rows. So `SKU Combined` ends up on **8 of
-140** rows.
-
-### STAGE B — the row builder · `cleaned.gs:68-151`
-
-Walks `Sheet1`. For a row with no `Merge Order`, one `processRow(j, "")`. For a merge group, it
-collects the block, counts the rows whose `Component` has ≤1 token, and labels them:
-
-```js
-:92  const label = mergeOrderLabelCounter === 1
-       ? `merge order total: ${labelCount} : merge order: 1`   // ← the wording U3L/U4 object to
-       : `merge order : ${mergeOrderLabelCounter}`;
-:98  else processRow(r.index, "");   // combo rows in a merge get NO label
-```
-
-### `processRow()` · `cleaned.gs:105-151` — the core transformation
-
-| Step | Line | Logic | Defect |
-|---|---|---|---|
-| SKU | `:108` | `SKU` else `Combo SKU`, trimmed, **uppercased** | — |
-| Lookup key | `:112` | `rawSku.endsWith("PK") ? rawSku.slice(0,-3) : rawSku` | 🔴 strips **3** chars for a **2**-char suffix. Works for `…6PK`; breaks `…10PK`. For `CL3TCR5PK` → `CL3TCR`, whose name is the **1-metre** variant |
-| Name | `:113` | `skuToName[lookupSku] \|\| ""` | silent miss |
-| Quantity | `:115` | `Combo Quantity` else `Quantity` | — |
-| **Quantity kill** | `:116` | `if (!name) quantity = '';` | 🔴 a failed name lookup **also blanks the quantity** — the row then speaks nothing |
-| Cable unit | `:118` | `if (rawSku.startsWith("CL")) quantity += " meter"` | 🔴 appends to the *wrong* quantity — "1 meter" for a 5-metre product |
-| Component | `:122-129` | `Combo: N` where N = comma-separated token count | `Combo: 1` announced for single products |
-| Emit | `:131-150` | 15 fields in fixed order | — |
-
-### Post-processing chain
-
-**`keepOnlyLastOccurrenceInD` · `:162-172`** — hardcoded **column 4** (Post Code):
-```js
-:167  if (current && current === previous) valuesD[i-1][0] = '';   // blanks the EARLIER row
-```
-Compares only the **adjacent** cell, with no customer check. Two different customers sharing a
-postcode → the first loses it. Result: Post Code **109/140 — 22 % blank**.
-
-**`clearFIfDIsEmptyInSheet` · `:186-192`** — hardcoded **column 6** (Instruction QR):
-```js
-:190  if (!valuesD[i][0]) valuesF[i][0] = '';
-```
-🔴 **Deleting a postcode silently deletes the QR flag.** Result: QR **5/140**. Two ticket threads
-(*"post code not shown"* and *"QR sollala"*) are the same bug.
-
-**`removeRPR44WHAndTransferPostCode` · `:266-296`**
-```js
-:280  if (sku === "RPR44WH" && component) {          // a product SKU hardcoded in shared logic
-:282    for (let k = cleaned.length-1; k >= 1; k--)  // scan BACKWARDS
-:284      cleaned[k][addressIndex] = postCode; break;
-:288    continue;                                     // row dropped
-```
-Deletes the white reducer plate (**169 → 140 rows**) and pushes its postcode onto the nearest earlier
-row with a blank postcode — which may belong to a different order.
-
-**`addCombinedSKUSet` · `:194-264`** — rebuilds `Combo SKU` (col M) in two passes:
-1. **Merge groups** — join SKUs sharing the group key *(this is the pass `clean-1.gs` patches)*.
-2. **Component sets** — scan for `Combo: 1`, accumulate while rows keep matching `Combo: \d+`, join
-   their SKUs, write the joined string to **every row in the set**.
-
-Pass 2 is why `Combo SKU` becomes a **product-shape identifier** rather than an order identifier —
-and therefore why two different customers who bought the same combo end up with the same key.
-
-### Resulting `Cleaned Data` layout
-
-| Col | Header | Written by | Fill |
-|---|---|---|---:|
-| A | SKU | Stage B | 140/140 |
-| B | **Name** | Stage B ← names master | 134/140 |
-| C | Quantity | Stage B | 134/140 |
-| D | **Post Code** | Stage B ← `Sheet1.Address` | **109/140** |
-| E | Selling Platform | Stage B | 55/140 |
-| F | Instruction QR | Stage B | **5/140** |
-| G | Image URLs | Stage B | 140/140 |
-| H | Merge Order | Stage B (the label) | 6/140 |
-| I | Component | Stage B (`Combo: N`) | 72/140 |
-| J | Title | Stage B | 140/140 |
-| K | Price | Stage B | 140/140 |
-| L | Customer Info | Stage B | 140/140 |
-| M | **Combo SKU** | `addCombinedSKUSet` | 75/140 |
-| N | Status | Stage B | 17/140 |
-| O | Send Order Instruction | Stage B | 1/140 |
-| **P** | Component *(dup)* | **Stage A leftover** | 72/140 |
-| **Q** | Send Order Instruction *(dup)* | **Stage A leftover** | 1/140 |
-| **R** | **SKU Combined** | **Stage A leftover** | **8/140** |
+`Title`, `Price`, `Customer Info`, `Status` and `Send Order Instruction` are included when `Sheet1` has
+them. Details: [data-maps/column-map.md](../data-maps/column-map.md).
 
 ---
 
-## 4. The speak tool — `readRowAndSpeak()` · `Lithursan.gs:1`
+## 3. Packing priority — `packing-priority.gs`
 
-### 4.1 Column resolution · `:28-38`
+### 3.1 Product type — `ppProductType(sku, name)`
 
-```js
-:29  headers.findIndex(h => h.toString().trim().toLowerCase() === colName.toLowerCase())
-:34  if (colIndex[colName] === -1) { alert(...); return; }
-```
+Tested in this order; the first match wins.
 
-**First match wins** — so `Component` binds to **I** (P ignored) and `Send Order Instruction` to
-**O** (Q ignored). `SKU Combined` is in `neededColumns` (`:25`), so **the tool refuses to start
-without the leftover column**.
+| # | Test | Type |
+|---:|---|---|
+| 1 | name matches `/c[ei]+l[ei]*ng\s*rose/` — and `/re[c]?tangle\|rectangular/` | `RECT_ROSE` |
+| 1 | name matches the rose test only | `ROSE` |
+| 2 | name matches bulb/watts **and** SKU starts `LD` | `BULB` |
+| 3 | SKU starts `LS` | `SHADE` |
+| 4 | SKU starts `WCWD` | `SHADE` (ruled 2026-08-19) |
+| 5 | SKU starts `WC` | `CAGE` (ruled 2026-09-11) |
+| 6 | SKU starts `LD` | `BULB` |
+| 7 | anything else | `OTHER` |
 
-### 4.2 Image map · `:47-52`
+The rose test runs first, so an `LS`-prefixed rose is a `ROSE`.
 
-`skuToImageUrl[sku] = imgUrl` — **last write wins** per SKU. Tested: **0 conflicts** in this sheet.
+### 3.2 Ranks — `PP_RANK_WITH_RECT` / `PP_RANK_NO_RECT`
 
-### 4.3 Grouping · `:57-72`
-
-```js
-:64  const groupKey = skuCombined !== "" ? skuCombined : comboSku;   // R preferred over M
-:70  combinedGroups[groupKey].push({row, index});
-```
-
-Scans the **whole sheet**, not adjacent rows, with **no customer or postcode check**.
-
-**Live result — this is the queue the packer actually gets:**
-
-| | Count |
-|---|---:|
-| `Cleaned Data` rows | 140 |
-| Standalone rows (no group key) | 65 |
-| Group keys | 35 |
-| Rows inside groups | 75 |
-| **Spoken entries in the queue** | **100** |
-
-Group sizes: 14×1, 10×2, 6×3, 2×4, 3×5.
-
-🔴 **4 group keys span more than one customer:**
-
-| Key | Rows | Customers |
+| Type | Order has a Rect Rose | Order has none |
 |---|---:|---:|
-| `LSHM400HE` | 5 | **5** |
-| `WCDCBM` | 3 | 3 |
-| `LSCY210BG` | 3 | 3 |
-| `LSEL400WH` | 2 | 2 |
+| RECT_ROSE | 1 | — |
+| SHADE | 2 | 1 |
+| CAGE | 3 | 2 |
+| BULB | 4 | 3 |
+| ROSE | 5 | 4 |
+| OTHER | 5 | 4 |
 
-Five separate parcels collapse into **one** spoken entry. Display data comes from `group[0]` only
-(`:94`, `:117-124`) and the postcode from the first row that has one (`:99-115`). **This is the
-wrong-parcel risk.**
+`ppRank()` falls back to the table's own `OTHER`. Rose and Other tie; the sort is stable.
 
-### 4.4 Speech assembly · `:158-204`
+### 3.3 `ppSortCleanedSheetRows()` → `ppApplyPackingPriority()`
 
-Per row in the group:
-```js
-:172  if (mergeOrder !== "") segmentParts.push(mergeOrder);
-:174  const nameWords = name.split(" ");                 // 🔴 no-op
-:175  segmentParts.push(":: " + nameWords.join(" "));    //     returns the same string
-:177  segmentParts.push(" :: " + quantity + " ::");
-```
+Rows are grouped into **contiguous runs of the same `Customer Info`** (postcode is not used — by this
+point it survives on one row per order). Each run is handled one of two ways:
 
-Then one final segment for the whole group:
-```js
-:186  postCode.split("")  → per character
-:188  if (char.trim() !== "") push(char)                 // 🔴 drops the space inside the postcode
-:196  if (qr !== "") push(": : " + qr)
-```
+**A normal order** — if the run contains a `RECT_ROSE`, `SHADE` or `ROSE`, it is sorted by rank
+(`RECT_ROSE` present → first table, otherwise the second). If it contains none of those (**Type 3**),
+it is left in sheet order.
 
-Produces, for a 2-component group:
-```
-segment 0:  "merge order total: 2 : merge order: 1 :: 40 cm hemp shade :: 2 ::"
-segment 1:  ":: 1 meter short holder pendant full set :: 1 ::"
-segment 2:  ":Post Code: C M 6 3 Z B : : Instruction QR Available"
-```
+**A merge order** — `ppSequenceMergeOrder()` handles a run whose rows all share one non-empty
+`SKU Combined` and whose first row carries a `Merge Order` label:
 
-Each segment is a **separate `SpeechSynthesisUtterance`** chained on `onend` (`:760-763`) — so this
-station *does* get real pauses between segments. `rowImages[]` swaps the main image per segment
-(`:744-749`).
+1. Split into sub-orders at each labelled row.
+2. Sort each sub-order on its own contents (same rule as a normal order — the Rect Rose test is per
+   sub-order).
+3. If any sub-order has a Lampshade or Ceiling Rose, **sequence the sub-orders**: key = the
+   sub-order's ranks from `PP_RANK_WITH_RECT`, best first; compare position by position; a full tie
+   keeps sheet order. E.g. `Lampshade + Rect Rose [1,2]` → `Rect Rose + … [1,5]` →
+   `Lampshade + Rose [2,5]` → `Bulb + Holder [4,5]`.
+4. Re-stamp the `Merge Order` labels in the **new** spoken sequence, reusing the original label texts.
 
-`pauseTime` is computed at `:214` and **never read** by the client.
+If `Merge Order` or `SKU Combined` is missing, merges fall back to the normal-order sort.
 
-### 4.5 Transport · `speakTextDialog()` · `:405-949`
-
-`JSON.stringify` of all three arrays is embedded into one HTML string (`:411-413`) and shown as a
-modal (`:948`, 1100×1300). **There is no `google.script.run` anywhere** — once the dialog opens it is
-fully self-contained and the sheet is never read again.
+**Verified 2026-09-14** against 155 real orders (27 merges): sequence identical to the HTML Speak
+Tool, 0 products lost, 0 labels misplaced.
 
 ---
 
-## 5. Cell → UI mapping
+## 4. Lampshade collections — `packing-priority.gs`
 
-### On screen (grouped order · `:216-262`)
+| Setting | Value |
+|---|---|
+| Limit per collection | **`PP_MAX_LAMPSHADE_COLLECTION = 15`** — ⚠️ the HTML tool uses **10** |
+| List 1 — "These orders only" (`RUN`) | `LSBS LSSS LSWE WCCY LSCYRO LSBG LSCG LSFG LSGD LSGG LSGL WCB WCD WCWD` |
+| List 2 — "Whole pack list" (`FULL`) | `LSCY2 LSDM LSDO LSEL LSFT LSHH LSHM LSLC LSLT LSMS LSOL LSRP LSTF LSTL LSTM LSUL LSWD` |
+| Prefix match | longest wins (`LSCYRO` → list 1; `LSCY290…` → list 2) |
 
-| UI element | Source | Line |
-|---|---|---|
-| `Title:` | `firstRow[Title]` | `:220` |
-| Blue bold name(s) | **every** row's `Name`, joined `" + "` | `:221-224` |
-| Grey platform chip | `firstRow[Selling Platform]` | `:227` |
-| Red text under chip | first non-empty `Instruction QR` in group | `:231` |
-| Large red text | `firstRow[Status]` — `international` / `firstclass` | `:234` |
-| Main image (green border) | `firstRow[Image URLs]`, swaps per segment | `:238`, `:746` |
-| Price pill | `firstRow[Price]`, non-numeric stripped | `:242` |
-| Customer block | `firstRow[Customer Info]` | `:245` |
-| Bold postcode | first non-empty `Post Code` in group | `:246` |
-| Red instruction | `firstRow[Send Order Instruction]` | `:249` |
-| Green quantity badge | **every** row's `Quantity`, joined `" + "` → `x 2 + x 1` | `:255-258` |
-| Grey text under badge | `groupKey` (`SKU Combined` or `Combo SKU`) | `:260` |
-| Thumbnail strip | `comboImages[]` — group key split on `+`, mapped to images | `:539-551` |
-| `Row: N of M` | `index+1` / `speakTexts.length` | `:781` |
-| `Row Time` / `Total Time` | client timers | `:517-537` |
+- A family is collected only when the order is **short** on that SKU — sufficiency is checked per SKU.
+- List 1 walks only the run of consecutive orders carrying the family; **a run of one is not shown**.
+  List 2 scans the rest of the pack list.
+- The limit is **per list**: an order short on both gets two collections.
+- The triggering order is always completed; if it alone exceeds the limit the batch is flagged
+  `OVERFLOW`.
+- The trolley pool is clamped at zero (2026-08-19 fix).
+- Families not in either list are never collected — packed straight from the order.
 
-### Spoken (never spoken: Title, Price, Customer Info, Platform, Status)
-
-| Spoken | Source | Line |
-|---|---|---|
-| Merge label | `Merge Order` (col H) | `:172` |
-| Product | `Name` (col B) — **raw, no normalisation** | `:174-176` |
-| Quantity | `Quantity` (col C) | `:177` |
-| Postcode | `Post Code` (col D), char by char, **space dropped** | `:184-192` |
-| QR | `Instruction QR` (col F) | `:195-197` |
-
-> **`Status` is displayed but never spoken** — so `international` and `firstclass` never reach the
-> packer's ears. Screenshot **P12** shows exactly this.
-
----
-
-## 6. Navigation state · client-side only
-
-| Variable | Line | Meaning |
-|---|---|---|
-| `index` | `:475` | position in `speakTexts` — drives display and speech |
-| `toSpeak` | `:481` | indices in play, initialised `[0…99]` |
-| `currentSpeakIndex` | `:483` | cursor **into `toSpeak`** |
-| `held` | `:482` | deferred rows — **nothing ever writes to it** |
+Collections are grouped by `Customer Info` + `Post Code` and stamped **before** the packing sort, on
+the order's first row:
 
 ```
-"next" → controlSpeech("next") :584 → changeIndex("next") :555
-   currentSpeakIndex += 1
-   if past end → currentSpeakIndex = 0        :561-563   ← WRAPS, no end-of-queue
-   index = toSpeak[currentSpeakIndex]         :570
-   updateUI() :572  +  speakLine() :574
+Lampshade Collection         BATCH|<n>|<total>|<max>|<OVERFLOW or empty>|<RUN or FULL>
+                             ITEM|<skus>|<size>|<colour>|<qty>|<orders>
+Lampshade Collection Speech  the sentence spoken for the collection step
 ```
 
-Voice commands (`:870-885`): `next|forward|go on` · `back|prev|previous` · `respeak|again|repeat` ·
-`postcode|post code` · `restart|start`. **No `stop`, no `pause`.** Matching is unanchored
-`includes()`. Also wired: arrow keys (`:832-851`) and MediaSession headset buttons (`:802-830`).
+`ppLoadSot()` reads the Lampshade SOT (`PP_SOT_ID`) for colour, family, size and image, with
+`PP_SOT_OVERRIDE` for rows whose SOT colour contradicts the product name.
 
 ---
 
-## 7. Implementation targets, in dependency order
+## 5. The speak dialog — `Lithursan.gs`
 
-| # | Change | File · line | Closes | Effort |
-|---:|---|---|---|---|
-| 1 | **Resolve the `clean-1.gs` / `cleaned.gs` collision** — confirm which loads last, keep the patched one, delete the other | both files | unblocks everything | XS |
-| 2 | Remove the duplicate `onOpen` | `action.gs:1` | menu reliability | XS |
-| 3 | Pack-suffix regex `replace(/\d+PK$/,'')` | `cleaned.gs:112` | wrong name/length | XS |
-| 4 | Never blank quantity on lookup miss | `cleaned.gs:116` | silent rows | XS |
-| 5 | `getValues()` → `getDisplayValues()` | `cleaned.gs:27` | leading zeros | XS |
-| 6 | Drop the `merge order total: N` prefix | `cleaned.gs:92-94` | U3L #15, U4 #59 | XS |
-| 7 | Speak `Status` | `Lithursan.gs:172` | international/firstclass | XS |
-| 8 | Keep the space inside the postcode | `Lithursan.gs:188` | postcode mispronunciation | XS |
-| 9 | Add `synth.resume()` | `Lithursan.gs:660` | pause is one-way | XS |
-| 10 | Decouple QR from postcode | `cleaned.gs:190` | QR 5/140 | S |
-| 11 | Composite-key postcode dedupe | `cleaned.gs:167` | postcode 109/140 | M |
-| 12 | Recognition: drop `stop()`, restart on error, gate mic while speaking | `Lithursan.gs:886, 892, 898` | "not listening" | M |
-| 13 | **Customer-safe group key** — `Combo SKU + customer + postcode` | `Lithursan.gs:64` | **wrong-parcel risk** | M |
-| 14 | Keep the reducer plate as a component; drop the backward scan | `cleaned.gs:266-296` | reducer not said | M |
-| 15 | Pack sequence — bulb first, shade last | new | U3L #8, #11, #22 | M |
-| 16 | Token classifier + SSML | `Lithursan.gs:752` | all pronunciation | M |
+Menu **Speak All Rows** → `readRowAndSpeak()`.
 
-**Steps 1–9 are nine one-line changes.** Step 13 is the one that matters most for correctness.
+### 5.1 Building the queue
+
+**Required columns** (the tool aborts without them): `SKU, Name, Quantity, Post Code, Selling
+Platform, Instruction QR, Image URLs, Title, Price, Customer Info, Combo SKU, Status, Merge Order,
+Component, Send Order Instruction, SKU Combined`. **Optional:** `Lampshade Collection`,
+`Lampshade Collection Speech`, `Colour`.
+
+**Grouping** — `groupKeyOf(row)`: label = `SKU Combined`, else `Combo SKU`; key = label **+ customer**.
+Rows sharing a key become one queue entry, taken in sheet order. So a merge order is **one** entry, and
+two customers who bought the same combo stay separate. A row with no label is a standalone entry.
+
+**Collection step** — if the order carries `Lampshade Collection` text, a separate queue entry is
+pushed **before** it, showing the batches and speaking the collection sentence.
+
+**Speech, per component row:** `[merge label] :: <name or "This one" + colour> :: <qty> ::`.
+The postcode (`:Post Code:` then characters, spaces dropped) and the note (Instruction QR and Send
+Order Instruction, `: Note : …`) are glued onto the **last** component — no extra Next needed.
+A nameless row with nothing to say is skipped entirely, keeping images and quantities aligned.
+
+**Thumbnails** follow the spoken order: each row's own image first, then combo components that have no
+row of their own.
+
+### 5.2 The modal
+
+`speakTextDialog()` embeds all queue data in one HTML string and opens a 1900 × 1400 modal. The sheet
+is not read again while it is open.
+
+| Element | Detail |
+|---|---|
+| Position | `Row N of M` · `Item a of b` |
+| Timers | this order · total |
+| Language / Voice | voices grouped by language; defaults to Google US English |
+| Speed | Slow 0.6 · Normal 0.7 · Fast 1.2 · Faster 1.5 |
+| Buttons | Restart · Back · Postcode · Pause · Repeat · Next |
+| Spoken text + thumbnail strip | current component highlighted |
+| Order card | title, names, platform, QR chip, status, image (click to zoom), per-component quantity, price, customer, postcode, note |
+| Mic chip + level meter | listening state and live input level |
+
+**Navigation:** Next steps through the order's components, then moves to the next order; after the last
+order it wraps to the first. Back mirrors it. Repeat re-speaks the current component; Postcode reads just
+the postcode.
+**Keys:** `→` Next · `←` Back · `↑` Repeat · `↓` Pause · `Enter` Restart · `Esc` closes zoom.
+**Headset** (MediaSession): play → resume/repeat, pause → pause, next track → Next, previous → Back.
+
+### 5.3 Voice — repository version
+
+- `continuous = true`, `interimResults = false`, `lang = "en-US"`. Restarted after every end.
+- Listens **while the tool speaks**. Only `postcode` is ignored while speech plays (the tool says it).
+- Last command word in the transcript wins; the same command within 1 second is ignored.
+
+| Command | Words |
+|---|---|
+| next | next · forward · go on · go next |
+| back | back · hack · bak · buck · rack · previous · prev |
+| repeat | respeak · again · repeat |
+| postcode | post code · postcode · post card · postcard · poscode · postco · pocket |
+| restart | restart · start · start again |
+| pause / resume | pause · resume · unpause |
+
+`hack` and `pocket` came from a console capture (2026-08-24) — Chrome returned them for "back" and
+"post code". `black`, `pack` and `bag` were rejected: 727, 56 and 97 catalogue names contain them.
+
+**Not in the Sheets tool:** Hold, Restart confirmation, Finished card, master-sheet names on
+collection cards, slower collection speech. These exist only in the HTML Speak Tool.
 
 ---
 
-## 8. Test fixtures — verify against these exact rows
+## 6. Status of the 2026-08-13 findings
 
-| Case | Where | Expected after fix |
-|---|---|---|
-| Group spanning 5 customers | key `LSHM400HE` | 5 separate queue entries, not 1 |
-| Group referencing a deleted component | rows 62–63, `…+RPR44WH` | reducer plate spoken as component 3 of 3 |
-| Correct 4-component group | rows 49–52, Alan Robinson | unchanged — must not regress |
-| Non-adjacent merge group | 1 group in the sheet | still grouped |
-| Blank name → blank quantity | 6 rows | quantity retained, SKU spelled |
-| Blank postcode | 31 rows | audible "postcode missing" |
+Re-checked against the repository code on 2026-09-14. Original analysis:
+[02-code-walkthrough.md](02-code-walkthrough.md).
+
+| Finding (13 Aug) | Status |
+|---|---|
+| `clean-1.gs` / `cleaned.gs` define the same functions | ✅ Fixed — `clean-1.gs` removed |
+| Duplicate `onOpen` (`action.gs`, `cleaned.gs`) | 🔴 Open |
+| `Cleaned Data` double write leaves columns P/Q/R as leftovers | ✅ Fixed — full-width write; `SKU Combined` written deliberately |
+| C1: `SKU Combined` becomes row-misaligned after rows are deleted | ❌ **Was wrong** — the deletion step rewrites every column, so the value stays on its row (verified on the live sheet 2026-08-13). The real wrong-parcel risk was the customer-less group key, fixed below |
+| Group key has no customer — different customers merged into one entry | ✅ Fixed — key includes customer |
+| Component set runs past a customer boundary | ✅ Fixed |
+| Merge group keyed on label text (unrelated orders collide) | ✅ Fixed — keyed on `SKU Combined` |
+| Quantity blanked when the name lookup fails | ✅ Fixed — only when there is no SKU; row spoken as "This one" |
+| Pack-suffix lookup `slice(0, -3)` | 🔴 Open |
+| Pause is one-way (no `synth.resume()`) | ✅ Fixed — verified resume |
+| Microphone closed while speaking; recogniser dies | ✅ Fixed — always-on, restarted on end |
+| No pack sequence | ✅ Fixed — packing priority, merge sequencing |
+| `merge order total: N` wording (FB-140) | 🔴 Open |
+| Postcode space dropped | 🔴 Open |
+| `Status` shown but not spoken | 🔴 Open |
+| Blanking a postcode blanks the QR flag | 🔴 Open |
+| Duplicate-postcode check is adjacent-only, no customer | 🔴 Open |
+| `RPR44WH` hardcoded in shared cleaning | 🔴 Open |
+| Leading zeros lost (`getValues`) | 🔴 Open |
+| No SSML / number normalisation | 🔴 Open |
+| `pauseTime` computed, never used | 🔴 Open (harmless) |
+
+---
+
+## 7. Test data
+
+- `order_details/1.html … 13.html` — 155 orders, 27 merges. The same pack lists the HTML tool is tested
+  on; loading `packing-priority.gs` into Node and feeding it rows built from them is how the 2026-09-14
+  merge change was verified against the HTML tool.
+- The live sheet itself is the final check: paste, **Run Clean and Merge**, **Speak All Rows**.

@@ -1,57 +1,69 @@
-# How to export the Apps Script source
+# Exporting and deploying the Apps Script
 
-> **Status: done for Unit 3 Lampshade.** Those 5 files are in [scripts/](../scripts/) and
-> reviewed in
-> [02-code-walkthrough.md](../documentation/02-code-walkthrough.md). The seven questions
-> below are all answered there except #7.
->
-> **Still to do: the other five stations.** Each runs its own copy and none have been
-> diffed. That diff measures the drift and sizes the consolidation work in
-> [Upgrade Proposal §5](../capability/upgrade-proposal.md).
+**Last updated:** 2026-09-14
+
+## Status
+
+| Station | Exported to | Notes |
+|---|---|---|
+| Unit 3 Lampshade | [`scripts/Unit 3 Lampshade/`](../scripts/Unit%203%20Lampshade/) | ⚠️ **Repo ≠ live.** The live `Lithursan.gs` has an Enable-voice button, mic-device picker, `interimResults = true`, `en-IN` — none of the repo copies match. Re-export before any deploy |
+| Unit 3 Others (*Copy of jana speak*) | [`scripts/Copy of jana speak/`](../scripts/Copy%20of%20jana%20speak/) | Original script |
+| Unit 3 Lampshade — Person 2 | [`scripts/Unit 3 Lampshade Person 2 Speak tool/`](../scripts/Unit%203%20Lampshade%20Person%202%20Speak%20tool/) | Original script |
+| Unit 4 | [`scripts/Unit 4 speak tool/`](../scripts/Unit%204%20speak%20tool/) | Original script |
+| Schmutter | [`scripts/Schmutter speak tool/`](../scripts/Schmutter%20speak%20tool/) | Original script |
+| Kronen | [`scripts/Kronen speak tool/`](../scripts/Kronen%20speak%20tool/) | Original script |
+
+The exports are a point-in-time copy. A station may have been edited in its Apps Script editor since.
+**Never assume the repo matches a live station — export first.**
 
 ---
 
-## Option A — copy by hand (2 minutes, no setup)
+## Before any deploy: export the live copy
 
-1. Open the station sheet, e.g.
-   [Unit 3 Lampshade](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0)
-2. `Extensions → Apps Script`
-3. In the left file list, open each file — typically `Code.gs` plus one or more `.html`
-   files (the modal is an HTML service dialog).
-4. Copy each file's contents into this repo under `documentation/script/<station>/`.
+### Option A — by hand (2 minutes)
 
-Do this for **all six stations** if possible. The diff between copies is itself a finding —
-it will show how far the six have drifted (see
-[Upgrade Proposal §5](../capability/upgrade-proposal.md)).
+1. Open the station sheet ([station-registry.md](../data-maps/station-registry.md)).
+2. `Extensions → Apps Script`.
+3. For each file in the left-hand list, copy its contents into `scripts/<station>/<file>.gs`,
+   overwriting the repo copy.
+4. `git diff` — anything that changed was edited live and must be kept.
+5. Commit **before** making your own changes, so the live state is on record.
 
-## Option B — `clasp` (proper, and sets up version control)
+### Option B — `clasp` (recommended; gives the script version control)
 
 ```bash
 npm install -g @google/clasp
 clasp login
-
-# script ID is in the Apps Script editor under Project Settings
-clasp clone <SCRIPT_ID> --rootDir ./documentation/script/unit3-lampshade
+# Script ID: Apps Script editor → Project Settings
+clasp clone <SCRIPT_ID> --rootDir "./scripts/Unit 3 Lampshade"
+clasp pull          # later, to refresh
 ```
 
-Repeat per station. Then commit — this gives the script a git history for the first time,
-which [Upgrade Proposal §5](../capability/upgrade-proposal.md) recommends anyway.
+`.gitignore` already excludes `.clasprc.json` (your OAuth token) and keeps `.clasp.json` (the script
+ID) trackable.
 
 ---
 
-## The seven questions — answers
+## Deploying a change to a station
 
-Full working in
-[02-code-walkthrough.md](../documentation/02-code-walkthrough.md).
+1. Export the live copy and commit it (above).
+2. Merge your change into the exported files. For Unit 3 Lampshade the changed files are normally
+   `packing-priority.gs`, `cleaned.gs` and/or `Lithursan.gs`.
+3. Paste into the Apps Script editor (or `clasp push`) and save.
+4. In the sheet: **Speak Tool → Run Clean and Merge** — required for any change to cleaning, collections
+   or packing priority, because the sort happens there.
+5. **Speak Tool → Speak All Rows** and listen to at least one merge order and one collection.
 
-| # | Question | Answer |
-|---|---|---|
-| 1 | Utterance assembly — any SSML? | **No SSML.** Postcodes *are* split per character, but the internal space is dropped (`Lithursan.gs:188`) and product names pass through raw — `split(" ").join(" ")` at `:174` is a no-op. |
-| 2 | Recognition restart? | `continuous = true`, but `stop()` is followed immediately by `start()` (`:886`), which throws; `onerror` does not restart. The mic also stays open while the tool speaks, so it **triggers its own "post code" command**. |
-| 3 | How are merges grouped? | By the `Merge Order` column, but only across **physically adjacent rows** (`cleaned.gs:80`). Combo rows inside a merge get no label at all. The `merge order total: N` wording FB-140 objected to is generated at `cleaned.gs:93`. |
-| 4 | Names sheet read live? | **Yes** (`cleaned.gs:13`) — nothing was lost. The fault is the lookup key: `slice(0, -3)` strips 3 chars to remove a 2-char `"PK"` (`:112`), and a failed lookup blanks the quantity (`:116`). |
-| 5 | Columns by name or index? | Both. `Lithursan.gs:29` matches by name, first-match-wins, so the duplicate P/Q are ignored. `cleaned.gs` uses hardcoded column numbers, and hardcodes the SKU `"RPR44WH"` in shared cleaning logic (`:280`). |
-| 6 | Blank `Name`/`Quantity`/`Post Code`? | Silent. 12px grey text in `#voiceFeedback` and the tool moves on (`:728`). |
-| 7 | How different are the six copies? | **Still open** — only one was exported. |
+Remember that all `.gs` files in a project share **one global scope**: a function defined in two files
+means the last one loaded wins. `onOpen` is already defined in both `action.gs` and `cleaned.gs` in
+Unit 3 Lampshade.
 
 ---
+
+## Rolling Unit 3 logic out to other stations
+
+The other five stations have **none** of: packing priority, lampshade collections, merge sequencing,
+customer-safe grouping, the "This one" fallback, the always-on microphone. Porting means at minimum
+`packing-priority.gs`, the pipeline changes in `cleaned.gs` (new columns and the final sort) and the
+queue/speech changes in `Lithursan.gs` — then a diff against each station's own edits. Schmutter and
+Kronen (German packs) report as one target. See handover decision #3 before starting.

@@ -1,5 +1,7 @@
 # Speech Tool — System Discovery & Analysis
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 **Stage:** Discovery + analysis only. Nothing was modified, created in the live system, or deployed.
 **Date:** 2026-08-13
 **Evidence base:** 2 spreadsheets downloaded and profiled · 5 Apps Script files (1,465 lines) read in full · 2 data-integrity hypotheses tested against live data.

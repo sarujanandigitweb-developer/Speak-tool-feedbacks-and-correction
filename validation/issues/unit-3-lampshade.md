@@ -1,5 +1,7 @@
 # Unit 3 Lampshade — Issue Analysis (23 issues)
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 **Issue tab:** `Unit 3 Lampshade`
 **Data sheet:** [`1AMQMzxu…`](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0)
 **Script:** [`scripts/Unit 3 Lampshade/`](../../scripts/Unit%203%20Lampshade/) — `Lithursan.gs` **948 L (has grouping)** · `cleaned.gs` **296 L**

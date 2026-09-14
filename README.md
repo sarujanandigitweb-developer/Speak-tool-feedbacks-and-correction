@@ -1,82 +1,89 @@
-# Speak Tool — Feedbacks, Correction & Upgrade Analysis
+# Speak Tool — Warehouse Voice Packing (STFC)
 
-Analysis package for the **LEDSone Speak Tool**, the Google Apps Script voice tool that
-reads warehouse pick-and-pack orders aloud to packers across six stations.
+The **LEDSone Speak Tool** reads warehouse pick-and-pack orders aloud so a packer's hands and
+eyes stay on the stock. The packer says **"next"** (or presses a button) to move on.
 
-**Task assigned by:** Varmen · **Prepared by:** Lithurshan · **Date:** 2026-08-13
+This repository holds the tool's source, its rules, and the analysis behind them.
+
+**Last updated:** 2026-09-14 · **Project code:** STFC · **Assigned by:** Varmen
 
 ---
 
 ## Start here
 
-| If you want… | Read |
+| If you are… | Read |
 |---|---|
-| **The submission report — give Varmen this** | [standalone HTML](handover/speak-tool-report-standalone.html) (open/email/print) · [published page](https://claude.ai/code/artifact/a8b49492-794d-4311-99b0-c4aec74baab5) |
-| The summary and what I need from you | [handover/handover-note.md](handover/handover-note.md) |
-| How the tool actually works | [documentation/01-system-concept.md](documentation/01-system-concept.md) |
-| **The bugs, line by line** | [documentation/02-code-walkthrough.md](documentation/02-code-walkthrough.md) |
-| What to fix and in what order | [capability/upgrade-proposal.md](capability/upgrade-proposal.md) |
-| The evidence behind it | [validation/open-defects.md](validation/open-defects.md) |
-| Confirmation the task is complete | [closure/submission-checklist.md](closure/submission-checklist.md) |
+| **Taking over the project** | [handover/handover-note.md](handover/handover-note.md) — current state, what is live, what is pending, risks |
+| Working on the **HTML Speak Tool** (the one on Varmen AIOS) | [packlist_extension/README.md](packlist_extension/README.md) |
+| Working on the **Google Sheets tool** (Unit 3 Lampshade) | [documentation/03-unit3-lampshade-logic.md](documentation/03-unit3-lampshade-logic.md) |
+| New to the domain (orders, combos, merges, names) | [documentation/01-system-concept.md](documentation/01-system-concept.md) |
+| Checking the packing rules | [workflows/packing-workflow.md](workflows/packing-workflow.md) |
 
 ---
 
-## The finding in three lines
+## There are two tools
 
-160 feedback items are logged across the six station tabs. **97 are fixed; 63 are
-outstanding** — and they keep coming back, because they are eight problems reported
-sixty-three times.
+They share the same **packing rules** but are delivered differently.
 
-The three root causes are (1) speech built as a plain string, so the TTS engine guesses at
-postcodes and product codes; (2) merge orders that exist in the warehouse but not in the
-data — only 6 of 140 rows carry a merge flag; and (3) six stations running six independent
-copies of the script, so every fix is six deployments and drifts.
+| | **HTML Speak Tool** | **Google Sheets Speak Tool** |
+|---|---|---|
+| What it is | A self-contained web page. Drop the day's Order Packing HTML on it and it speaks the pack list. | Google Apps Script bound to each station's sheet. `Extensions → Speak Tool`. |
+| Source | [`packlist_extension/`](packlist_extension/) + shared rules in [`speak_tool_html_sheet_UI/engine.js`](speak_tool_html_sheet_UI/engine.js) | [`scripts/<station>/`](scripts/) — one independent copy per station |
+| Reads | The pack list HTML page | `Sheet1` → cleaned into `Cleaned Data` |
+| Deployed to | **Varmen AIOS hub**, slug `speak_tool` | Each station's Apps Script editor (pasted by hand) |
+| Packing priority, collections, merge sequencing | ✅ current | ✅ Unit 3 Lampshade only, **repo version not yet pasted live** — see handover |
+| Hold / Held orders | ✅ | ❌ |
 
-**Fixing those three closes 41 of the 63 and stops the backlog regenerating.** About two
-weeks of work.
-
----
-
-Reading the Apps Script confirmed all three, and turned up a fourth nobody had filed:
-`addCombinedSKUSet` writes the same `Combo SKU` string to every row of a component set, making it a
-**product-shape identifier rather than an order identifier** — so two customers who bought the same
-combo are merged into one spoken order. Live data: **4 of 35 group keys span more than one customer,
-one of them five**. See [C1](documentation/02-code-walkthrough.md) and
-[03-unit3-lampshade-logic.md](documentation/03-unit3-lampshade-logic.md).
-
-**Seven one-line fixes close eight tickets** — listed at the end of the
-[code walkthrough](documentation/02-code-walkthrough.md).
+Live page: <https://varman-aios-hub-varmens.vercel.app/view/hub_pages/speak_tool>
 
 ---
 
-## Contents
+## Project structure
 
-| Folder | Contents |
-|---|---|
-| [documentation/](documentation/) | System concept — the two-layer name model, order types, end-to-end flow · **code walkthrough with line-level root causes** |
-| [scripts/](scripts/) | The exported Apps Script — 5 files, 1,465 lines |
-| [data-maps/](data-maps/) | Station registry (all 6 sheet links) · `Sheet1` → `Cleaned Data` column map |
-| [evidence/](evidence/) | 160-item feedback register (CSV) · verbatim extract of all 6 tabs |
-| [validation/](validation/) | The 63 outstanding items, grouped into 8 themes with root causes |
-| [capability/](capability/) | Upgrade proposal — priorities, designs, 5-week plan |
-| [workflows/](workflows/) | As-is packing session · to-be utterance spec · pre-flight checks |
-| [prompts/](prompts/) | Paste-ready Claude project setup |
-| [sql/](sql/) | Proposed merge-order data model backing Proposal §4 |
-| [handover/](handover/) | Handover note · Apps Script export instructions |
-| [closure/](closure/) | Submission checklist against Varmen's instructions |
+| Folder | What is in it | Kind |
+|---|---|---|
+| [`packlist_extension/`](packlist_extension/) | HTML Speak Tool: UI/speech/voice source, build script, loader | **Code** |
+| [`packlist_upload/`](packlist_upload/) | `Speak-Tool.html` — the built single file that is uploaded to the hub. **Generated.** | Build output |
+| [`speak_tool_html_sheet_UI/`](speak_tool_html_sheet_UI/) | `engine.js` (packing rules) and `reference-data.js` (names + Lampshade SOT) — **shared by the build**. `index.html` + `app.js` are the older REQ-04 standalone UI, no longer deployed. | **Code** |
+| [`scripts/`](scripts/) | Apps Script exported from all six stations. Unit 3 Lampshade is the only one carrying the packing-priority and collection work. `*.bak*` files are local backups, not deployed. | **Code** |
+| [`order_details/`](order_details/) | 13 real pack-list HTML files (155 orders) used as test data | Test data |
+| [`outputs/`](outputs/) | `packlists-13.speak.html` — a frozen snapshot of those 13 lists with the tool inside | Generated |
+| [`documentation/`](documentation/) | System concept, Unit 3 logic reference, and the 13 Aug code walkthrough (historical) | Docs |
+| [`workflows/`](workflows/) | The packing sequence rules the tools implement | Docs |
+| [`data-maps/`](data-maps/) | Station and sheet links; `Sheet1` → `Cleaned Data` columns | Docs |
+| [`handover/`](handover/) | Handover note; how to export / deploy Apps Script | Docs |
+| [`validation/`](validation/) | Rule decisions (dated) and issue analyses | Dated records |
+| [`capability/`](capability/) | Implementation reports and the original upgrade proposal | Dated records |
+| [`evidence/`](evidence/) | Feedback register (160 items), discovery reports, test scripts and results | Dated records |
+| [`daily_logs/`](daily_logs/) | Day-by-day work logs | Dated records |
+| [`sql/`](sql/) | Daily-task insert for the reporting DB; a proposed order model (never built) | Dated records |
+| [`closure/`](closure/), [`prompts/`](prompts/) | 13 Aug submission checklist; Claude project setup text | Docs |
+
+**Dated records are kept as they were written.** Where a later ruling changed something, the file
+carries a banner at the top pointing to what is current. Do not treat an unbannered 13 Aug figure
+(for example "1,465 lines" or "limit of 15") as current without checking the code.
+
+---
+
+## Build and deploy the HTML Speak Tool
+
+```bash
+node packlist_extension/build.js        # rebuilds packlist-speak.js, speak-loader.html
+                                        # and packlist_upload/Speak-Tool.html
+```
+
+The build is what makes a source edit real. Always rebuild before uploading — an unbuilt edit
+is not in `Speak-Tool.html`. Upload steps are in the
+[handover note](handover/handover-note.md#5-deploying).
+
+---
 
 ## Sources
 
-- [Speak tool feedbacks and correction](https://docs.google.com/spreadsheets/d/1uN-9zDQ-JKoY9AsFGIUqt5ByRK6uuwmSgKwaEXmFtUM/edit?gid=592560198) — 6 station tabs
-- [Unit 3 Lampshade speak tool](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0) — the data sheet profiled in depth
-- Remaining station links → [data-maps/station-registry.md](data-maps/station-registry.md)
-
-## Remaining gap
-
-The Apps Script has now been exported and reviewed — see
-[documentation/02-code-walkthrough.md](documentation/02-code-walkthrough.md).
-
-**Only the Unit 3 Lampshade project was exported.** The other five stations run their own
-copies and have never been diffed against it, so how far they have drifted is still
-unknown. Export steps are in
-[handover/script-export-instructions.md](handover/script-export-instructions.md).
+| Sheet | Link |
+|---|---|
+| Feedback workbook (one tab per station) | [1uN-9zDQ…](https://docs.google.com/spreadsheets/d/1uN-9zDQ-JKoY9AsFGIUqt5ByRK6uuwmSgKwaEXmFtUM/edit?gid=592560198) |
+| Unit 3 Lampshade station sheet | [1AMQMzxu…](https://docs.google.com/spreadsheets/d/1AMQMzxukdx3GMNSPmL20_8X6f-w_iUgCJVOyAjneSMU/edit?gid=0) |
+| Names Master Sheet (spoken names) | [16rx5Dz…](https://docs.google.com/spreadsheets/d/16rx5Dz-YYp-GTvRfytjq9e4p6AHw3qYh8Tm9rOPkS6M/edit?gid=2082105888) |
+| Lampshade SOT (sizes, colours, images) | [1b9n4Rhy…](https://docs.google.com/spreadsheets/d/1b9n4RhyIEuEyRRQIkfmVlsqc7uazQiqqQXCZKKPwpSI/edit?gid=736349891) |
+| All other station sheets | [data-maps/station-registry.md](data-maps/station-registry.md) |

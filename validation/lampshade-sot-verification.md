@@ -1,5 +1,7 @@
 # Lampshade SOT — Complete Verification Against Unit 3 Speech Tool Logic
 
+> **📌 Dated record — status checked 2026-09-14.** Written 2026-08-14 against the rules of that date. The SOT facts still stand; the packing ranks and collection limit have changed (WC cage rank added 2026-09-11; HTML tool limit 10). Current rules: [packing-workflow.md](../workflows/packing-workflow.md).
+
 **Spreadsheet:** [`1b9n4Rhy…`](https://docs.google.com/spreadsheets/d/1b9n4RhyIEuEyRRQIkfmVlsqc7uazQiqqQXCZKKPwpSI/edit?gid=736349891)
 *LEDsone — SOURCE OF TRUTH, EASY FIT LAMPSHADES · Version 8.0 · Updated 06 Aug 2026 · Status ACTIVE*
 **Purpose:** verify SKU → Product Name → Colour → Product Type → Packing logic.

@@ -1,5 +1,7 @@
 # Unit 3 Lampshade — collection rule of 2026-08-18
 
+> **📌 Dated record — status checked 2026-09-14.** Amended by [the 2026-08-19 rules](unit3-lampshade-rules-2026-08-19.md). The folder `speak_tool_html/` named here is now `speak_tool_html_sheet_UI/`. The HTML Speak Tool's limit is **10** since 2026-08-20; the Sheets tool remains 15. Current rules: [packing-workflow.md §5](../workflows/packing-workflow.md).
+
 **Author:** Sarujanan · **Date:** 2026-08-18 · **Project:** STFC · **Assigned by:** Varmen
 **Supersedes:** `validation/unit3-lampshade-collection-run.md`, which records the previous rule
 (every LS-prefixed product collectible, whole pack list scanned for all of them). That rule has been

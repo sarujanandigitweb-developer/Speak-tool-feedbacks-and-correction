@@ -1,5 +1,14 @@
 # Open Defects — Thematic Analysis
 
+> **📌 Dated record — status checked 2026-09-14.** Counts and statuses are the **feedback sheet as of 2026-08-13**; they have not been re-pulled. Since then the code has addressed parts of several themes:
+>
+> - **B ("next" misses):** microphone always on, listens while speaking, mishearings accepted (HTML and Unit 3 repo).
+> - **C (merge/combo):** customer-safe grouping, one component per Next, postcode last, per-sub-order priority and merge sequencing. The `merge order total: N` wording (FB-140) is still open.
+> - **D (silent fields):** nameless rows now spoken as "This one" + colour with quantity kept.
+> - **Pack sequence:** the business ruled **lampshade first**, not "shade last" as proposed here — see [packing-workflow.md](../workflows/packing-workflow.md).
+>
+> Themes A (number/postcode pronunciation), E, F, G, H are unchanged. Current open items: [handover note §8](../handover/handover-note.md).
+
 Source: [evidence/feedback-register.csv](../evidence/feedback-register.csv) — 160 items
 normalised from the six station tabs.
 

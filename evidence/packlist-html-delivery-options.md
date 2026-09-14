@@ -1,5 +1,7 @@
 # Speak Tool without the spreadsheet — delivery options on the HTML pack list
 
+> **📌 Dated record — status checked 2026-09-14.** This options analysis (2026-08-17) came **before** the HTML tool existed. The option taken was an overlay/loader page, now live on Varmen AIOS as `speak_tool` — see [packlist_extension/README.md](../packlist_extension/README.md). Figures quoted here (collection limit 15, feature gaps) describe that date.
+
 **Author:** Sarujanan · **Date:** 2026-08-17 · **Project:** STFC — Speech Tool, Warehouse Voice Packing
 **Status:** Analysis only. No code was written or changed for this report.
 

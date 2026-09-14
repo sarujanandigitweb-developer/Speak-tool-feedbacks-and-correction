@@ -1,5 +1,7 @@
 # Issue Analysis — Index & Scoreboard
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 Every one of the **160 reported issues**, split into one file per station, each analysed
 individually to file · function · line — the same depth as the Unit 4 analysis.
 

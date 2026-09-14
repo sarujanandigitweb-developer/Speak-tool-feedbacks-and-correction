@@ -1,5 +1,7 @@
 # Schmutter — Issue Analysis (14 issues)
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 **Issue tab:** `Schmutter` · German packlist station
 **Data sheet:** [`1QsxHvee…`](https://docs.google.com/spreadsheets/d/1QsxHveeHDoZE_QJ4aOpRzcuvzAh1MFUZb3xWkmVw1gA/edit?gid=2036049509)
 **Script:** [`scripts/Schmutter speak tool/`](../../scripts/Schmutter%20speak%20tool/) — `Lithursan.gs` **948 L (has grouping)** · `cleaned.gs` **263 L (no `RPR44WH` removal)**

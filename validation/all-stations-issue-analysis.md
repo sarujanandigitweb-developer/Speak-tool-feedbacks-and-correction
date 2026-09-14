@@ -1,5 +1,7 @@
 # Unit 3 Others · Unit 3 Lampshade · Schmutter · Kronen — Issue-by-Issue Analysis
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 **101 issues** analysed individually, with status, root cause, responsible file/function/line, and
 screenshot evidence where the sheet contains one.
 Companion to [unit4-issue-analysis.md](./unit4-issue-analysis.md) (Unit 4's 59). **Total: 160.**

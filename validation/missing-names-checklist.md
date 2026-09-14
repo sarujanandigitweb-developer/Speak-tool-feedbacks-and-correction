@@ -1,5 +1,7 @@
 # Unit 3 Lampshade — SKUs with no spoken name
 
+> **📌 Dated record — status checked 2026-09-14.** The code behaviour described here changed: a SKU with no name is **no longer silent** — its quantity is kept and it is spoken as "This one" + colour. The list of SKUs (checked 2026-08-17) is still the list to add to the Names Master Sheet; re-check it against the live sheet before acting.
+
 **Checked:** 2026-08-17 · **Source:** live `Cleaned Data` vs the shared `names` master ([16rx5Dz…](https://docs.google.com/spreadsheets/d/16rx5Dz-YYp-GTvRfytjq9e4p6AHw3qYh8Tm9rOPkS6M))
 
 These SKUs are **not in the `names` master sheet**, so `processRow()` leaves the name empty, the existing `if (!name) quantity = ''` rule blanks the quantity too, and the Speak Tool says **nothing at all** for the row. The product image still appears in the strip, so the packer sees an item they are never told to pick.

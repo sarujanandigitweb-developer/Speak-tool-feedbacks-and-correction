@@ -1,154 +1,163 @@
 # Speak Tool — System Concept
 
-**Prepared for:** Varmen (task assigner)
-**Prepared by:** Lithurshan
-**Date:** 2026-08-13
-**Status:** Concept understood and documented from live sheets. Apps Script source not yet exported (see Gap 1).
+**Last updated:** 2026-09-14 (first written 2026-08-13)
+**Audience:** anyone new to the project. This explains the domain; the code-level detail is in
+[03-unit3-lampshade-logic.md](03-unit3-lampshade-logic.md) and
+[packlist_extension/README.md](../packlist_extension/README.md).
 
 ---
 
 ## 1. What the tool is
 
-The **Speak Tool** is a Google Apps Script add-on bound to a Google Sheet. It converts a
-day's order list into a **hands-free audio pick-and-pack instruction stream** for the
-warehouse team.
+The **Speak Tool** turns a day's order list into a **hands-free audio pick-and-pack stream**. A packer
+stands at a station with both hands on stock. Instead of reading a printed pack list, the tool
+**speaks each order** — product name, quantity, then postcode — and moves on when the packer says
+**"next"** or presses a button.
 
-A packer stands at a station with both hands on stock. Instead of reading a printed
-packlist and looking up and down between paper and shelf, the tool **speaks the order to
-them** — quantity, product name, then postcode — and advances to the next order on a
-**voice command** ("next") or a button press.
+Eyes and hands stay on the product, so packing is faster and mis-picks drop.
 
-The business value is simple: eyes and hands stay on the product, so packing is faster
-and mis-picks drop.
+## 2. Two delivery forms
 
-## 2. The user interface
+| | HTML Speak Tool | Google Sheets Speak Tool |
+|---|---|---|
+| Input | The dashboard's **Order Packing HTML** page | The station sheet: `Sheet1` → `Cleaned Data` |
+| Runs as | A web page (loader) or an overlay on the pack list | Apps Script modal: `Extensions → Speak Tool → Speak All Rows` |
+| Deployed | Varmen AIOS hub, slug `speak_tool` | Pasted into each station's Apps Script |
+| Rules | `speak_tool_html_sheet_UI/engine.js` | `scripts/Unit 3 Lampshade/packing-priority.gs` |
 
-From the live tool (`Extensions → Speak Tool → Speak Products`), the modal shows:
+Both implement the **same packing rules**. The HTML tool is the one being developed actively; the
+Sheets tool is maintained for Unit 3 Lampshade.
 
-| Element | Purpose |
-|---|---|
-| `Row: 1 of 217` | Position in the day's queue |
-| `Row Time: 00:01:28` | Time spent on the current order — a productivity metric |
-| `Total Time: 00:00:00` | Cumulative session time |
-| `Voice:` dropdown | Browser TTS voice selection (e.g. *Google US English (en-US)*) |
-| `Speed:` dropdown | Normal / Fast / Very Fast (per FB-121: x1, x1.25, x1.5) |
-| `Back` | Previous order |
-| `Restart` | Re-run the queue from row 1 |
-| `Respeak` | Repeat the current order |
-| `Postcode` | Speak the postcode on demand (confirmed **after** packing) |
-| `Pause` | Hold the queue |
-| `Next` | Advance one order |
-| Spoken-text banner | The exact string being spoken, e.g. `:: S T 6 4 b22 8 wats :: 6: :Post Code: W 3 6 H H` |
-| Product panel | Thumbnail, marketplace title, phonetic name, price, customer + address, quantity badge, SKU |
+## 3. What the packer sees
 
-Every button also has a **spoken equivalent** — "next", "back", "stop", "run" — captured
-through the browser Speech Recognition API. That is the "voice control" Varmen referred
-to: *say "next" and the order list shifts*.
+**HTML Speak Tool** — the pack list page itself, with a control bar fixed at the bottom:
+position (`Order 7 of 155 · Item 1 of 3 · file 2`), status (`Remaining 120 of 155`), the words being
+spoken, **Restart · Back · Postcode · Pause · Repeat · Next · Hold · Held (N)**, Zoom, Voice
+settings, Mic and a live mic level. The product being spoken is outlined on the page and its picture
+opens large. Collections appear as a dialog over the page.
 
-## 3. The two-layer data model
+**Google Sheets tool** — a modal (1900 × 1400): `Row N of M` and `Item a of b`, row and total
+timers, Language / Voice / Speed, **Restart · Back · Postcode · Pause · Repeat · Next**, the words
+being spoken, a numbered thumbnail strip (one per component, the current one highlighted), and the
+order card with a large per-component quantity. Headset media buttons map to play/pause/next/previous.
 
-This is the single most important thing to understand about the system.
+Full control lists: [packlist_extension/README.md](../packlist_extension/README.md) ·
+[03-unit3-lampshade-logic.md §5](03-unit3-lampshade-logic.md#5-the-speak-dialog--lithursangs).
 
-The tool does **not** read the marketplace product title aloud. Marketplace titles are
-SEO text — 40+ words, unpronounceable, useless to a packer:
+## 4. The two-layer name model
 
-> `LEDSone Pack 6 | Vintage LED Dimmable B22 Light Bulb, ST64 8W (Equivalent 60W) 2700K Warm White 806 Lumens Amber Glass | Bayonet Base LED Energy Saving Bulb for Squirrel Cage Lamp & Home Decorative`
+The single most important idea in the system.
 
-Instead the sheet carries a second, **phonetic short name** written for the ear:
+Marketplace titles are SEO text — 40+ words, unpronounceable:
+
+> `LEDSone Pack 6 | Vintage LED Dimmable B22 Light Bulb, ST64 8W (Equivalent 60W) 2700K Warm White …`
+
+They are **never spoken**. Each SKU has a second, **short spoken name** written for the ear:
 
 > `S T 6 4 b22 8 wats`
 
-So each order row exists twice:
+Spoken names live in the shared **Names Master Sheet**, owned by the postage team, so a pronunciation
+fixed once is fixed for every station. The HTML tool reads it live (cached 6 hours) and falls back to
+a built-in copy; the Sheets tool reads it on every **Run Clean and Merge**.
 
-- **`Sheet1`** — the raw import from the selling platforms (Amazon UK/DE/FR/IE, eBay,
-  Wayfair, B&Q, Shopify/ledsone.co.uk). 17 populated columns, one row per line item.
-- **`Cleaned Data`** — the speech-ready projection. Adds `Name` (phonetic), `Post Code`
-  (split out of the address), and `Combo: n` component markers.
+A SKU with no spoken name is announced as **"This one"** plus its colour, and the packer identifies it
+from the picture.
 
-The phonetic `Name` values come from a **shared Names Master Sheet** owned by the postage
-team, so a pronunciation fixed once is fixed for every station.
+**Consequence:** most "it said the wrong thing" tickets are **data** fixes in the Names Master Sheet,
+not code fixes.
 
-**Consequence:** most "it said the wrong thing" tickets are *data* bugs (fix the name
-sheet), not *code* bugs. But postcode and number pronunciation is *algorithmic* — and
-that is where the recurring defects live. See
-[Upgrade Proposal §2](../capability/upgrade-proposal.md).
+## 5. Product types and packing priority
 
-## 4. Order types
+Every product is classified, and products inside an order are spoken in priority order:
 
-Defined by the business on the `All Stations` tab:
+| Type | How it is recognised |
+|---|---|
+| Rectangle Ceiling Rose | name matches *ceiling rose* **and** *rectangle / retangle / rectangular* |
+| Ceiling Rose | name matches *ceiling rose* (data spells it *celing* too) |
+| Lampshade | SKU starts `LS`, or `WCWD` |
+| WC cage | SKU starts `WC` (other than `WCWD`) |
+| Bulb | name says bulb/watts and SKU starts `LD`, or any `LD` SKU |
+| Other | everything else |
+
+| Order has a Rectangle Ceiling Rose | Order has none |
+|---|---|
+| Rect Rose → Lampshade → WC cage → Bulb → Rose/Other | Lampshade → WC cage → Bulb → Rose/Other |
+
+An order with **no Lampshade and no Ceiling Rose** is spoken in its original order. Rules and their
+dated rulings: [workflows/packing-workflow.md](../workflows/packing-workflow.md).
+
+## 6. Order types
+
+Defined by the business on the feedback workbook's `All Stations` tab:
 
 | # | Type | Meaning |
 |---|---|---|
 | 1 | Single order, single product | One customer, one SKU |
-| 2 | Merge order, single products | Several separate orders to the **same customer/address**, each one SKU |
-| 3 | Single order, multi products | One customer, several SKUs (a *combo*) |
-| 4 | Merge order, multi products | Several orders to the same customer, each with several SKUs |
-| 5 | Merge order, single **and** multi products | Mixed |
+| 2 | Merge order, single products | Several separate orders to the **same customer/address**, one SKU each |
+| 3 | Single order, multi products | One customer, several SKUs — a **combo** |
+| 4 | Merge order, multi products | Several orders to one customer, each with several SKUs |
+| 5 | Merge order, single **and** multi | Mixed |
 
-A **combo** is one purchase made of several components — e.g. combo SKU
-`CRSF100BM+PHSH1PBRBM+LSMS320GR` is a ceiling rose + pendant holder + green dome shade,
-sold as one Amazon listing. These arrive in the sheet as **multiple rows** flagged
-`component`, sharing a `Combo SKU`.
+A **combo** is one purchase made of several components — e.g. `CRSF100BM+PHSH1PBRBM+LSMS320GR`, a
+ceiling rose + pendant holder + shade sold as one listing.
 
-A **merge order** is several *distinct* orders bound for the same address, which must be
-packed into one parcel.
+A **merge order** is several **distinct** customer orders bound for the same address and packed into
+**one** parcel. The tools apply packing priority inside each sub-order, and also decide **which
+sub-order is packed first**. On the pack list a merge is one order with several product blocks; in the
+sheet it is a run sharing one `SKU Combined` value, with a `Merge Order` label on the first row of each
+sub-order.
 
-Types 2–5 are the source of roughly a third of all feedback. The packer must be told the
-**whole** parcel — "component 1 of 3, component 2 of 3…" and the postcode **last** — or
-they under-pack. See [Open Defects — Theme C](../validation/open-defects.md).
+## 7. Lampshade collections
 
-## 5. The station estate
+Lampshades are bulky and shelved elsewhere. Rather than walk to the shelf for every order, the packer
+is sent **once** to collect a shade family for several upcoming orders — shown as a **collection**
+step before the order that triggers it. Two prefix lists decide the scope ("these orders only" vs
+"whole pack list"), with a per-collection limit (**10** in the HTML tool, **15** in the Sheets tool).
 
-Six independent copies of the tool run across the warehouse, each bound to its own sheet:
+## 8. The station estate
 
-See [Station Registry](../data-maps/station-registry.md) for live links.
+Each station has its own sheet and its own copy of the Apps Script:
 
 - Unit 3 Lampshade (+ a Person 2 duplicate)
-- Unit 3 Others
+- Unit 3 Others (*Copy of jana speak*)
 - Unit 4
 - Schmutter (German pack)
 - Kronen (German pack)
-- Names Master Sheet — shared pronunciation dictionary, postage team
 
-Each station keeps its **own feedback tab** in the
-[Speak tool feedbacks and correction](../data-maps/station-registry.md) workbook.
+Links: [data-maps/station-registry.md](../data-maps/station-registry.md). All six scripts are exported
+in [`scripts/`](../scripts/). **Only Unit 3 Lampshade carries the packing-priority and collection
+work**; the other five are the original scripts.
 
-**This estate shape is itself a finding.** Six copies of the same script means the same
-defect is reported and fixed up to six times. Four items are word-for-word identical
-between Schmutter and Kronen (FB-142/156, FB-145/159, and two more). See
-[Upgrade Proposal §5](../capability/upgrade-proposal.md).
+Six independent copies means a fix is six deployments and the same defect gets reported more than
+once. The HTML Speak Tool avoids this: one file, published once.
 
-## 6. End-to-end flow
+## 9. End-to-end flow
 
 ```
-Selling platforms (Amazon/eBay/Wayfair/B&Q/Shopify)
-        │
-        ▼
-   Sheet1  ── raw line items, 17 cols, combos as separate `component` rows
-        │
-        │  cleaning step: phonetic Name lookup (Names Master Sheet),
-        │  postcode extraction, combo numbering
-        ▼
- Cleaned Data ── speech-ready queue
-        │
-        ▼
-  Apps Script  ── builds the utterance string per row
-        │            ":: <Name> :: <Qty>: :Post Code: <P O S T C O D E>"
-        ▼
-  HTML modal   ── Web Speech API
-        │            SpeechSynthesis  → speaks it
-        │            SpeechRecognition → listens for "next"/"back"/"stop"
-        ▼
-     Packer    ── picks, packs, says "next"
+ HTML SPEAK TOOL                                GOOGLE SHEETS TOOL
+ ───────────────                                ──────────────────
+ Dashboard → Order Packing HTML                 Selling platforms → Sheet1 (raw rows)
+        │                                              │  Run Clean and Merge
+        ▼                                              ▼
+ Loader page / overlay                          Cleaned Data
+   parse orders + product blocks                  spoken name (Names Master Sheet)
+   names: live sheet → built-in                   merge labels, combo sets
+   product type + packing priority                product type, colour
+   merge sub-order sequencing                     lampshade collections stamped
+   lampshade collections                          packing priority sort (per sub-order)
+        │                                              │  Speak All Rows
+        ▼                                              ▼
+ Queue: collection steps + orders               Queue: collection entries + orders
+        │                                              │
+        └──────────── Web Speech API ──────────────────┘
+             SpeechSynthesis speaks  ·  SpeechRecognition hears "next"
+                               │
+                               ▼
+                     Packer picks, packs, says "next"
 ```
 
-## 7. Gaps in this document
+## 10. Where the old analysis went
 
-1. **Apps Script source not included.** Bound Apps Script cannot be fetched from a public
-   URL — it needs the sheet owner's login. Export instructions are in
-   [handover/script-export-instructions.md](../handover/script-export-instructions.md).
-   Everything in this document is derived from the live sheet data, the tool UI, and the
-   160-item feedback register; the script will confirm or refine §6, not overturn it.
-2. **Names Master Sheet not yet profiled** — link captured, contents not read.
-3. Only the Unit 3 Lampshade data sheet was profiled in depth. The other five are assumed
-   to share the schema (the feedback tabs are consistent with that, but it is unverified).
+This document replaced its 2026-08-13 version, which was written before the Apps Script was exported
+and before either tool gained packing priority or collections. The original root-cause analysis is
+kept in [02-code-walkthrough.md](02-code-walkthrough.md) (historical).

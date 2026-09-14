@@ -1,5 +1,7 @@
 # Lampshade Collection — Worked Example, UI Design, and the Decision Needed
 
+> **📌 Dated record — status checked 2026-09-14.** Written 2026-08-14, when the collection rule was undefined. The rule was defined on 2026-08-18 (two prefix lists) and amended 2026-08-19. The limit of **15** still applies to the Unit 3 Sheets tool; the **HTML Speak Tool uses 10** since 2026-08-20. Current rules: [packing-workflow.md §5](../workflows/packing-workflow.md).
+
 **Worked against the example supplied 2026-08-14.** Analysis and UI design only.
 **No code changed** — the allocation rule this depends on is still undefined.
 

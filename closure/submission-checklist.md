@@ -1,5 +1,7 @@
 # Submission Checklist
 
+> **📌 Dated record — status checked 2026-09-14.** This is the checklist for the **2026-08-13 analysis submission** and is kept as that record. Several "gaps" it lists are closed — all six stations' scripts are now exported, and both tools have been built since. For the current project state use the [handover note](../handover/handover-note.md).
+
 **Task:** Speak Tool — understand the system, create the Claude project, analyse and
 propose upgrades
 **Assigned by:** Varmen

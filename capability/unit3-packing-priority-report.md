@@ -1,5 +1,12 @@
 # Unit 3 Lampshade — Packing Priority & Colour-Wise Collection
 
+> **📌 Dated record — status checked 2026-09-14.** The ranks in this 2026-08-17 report were changed twice:
+>
+> - **2026-08-19:** a plain Ceiling Rose ranks with Other; orders with no Lampshade and no Ceiling Rose are not reordered.
+> - **2026-09-11:** WC cages (`WC*` except `WCWD`) get their own rank immediately after Lampshade; merges are ranked per sub-order, and (2026-09-14) the sub-orders are sequenced.
+>
+> The collection cycle reported here as not implemented was implemented on 2026-08-18. Current rules: [packing-workflow.md](../workflows/packing-workflow.md).
+
 ## Implementation Report
 
 **Status: 🟠 AMBER — priority matrix, classification and colour implemented and validated.

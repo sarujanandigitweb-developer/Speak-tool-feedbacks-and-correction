@@ -1,5 +1,7 @@
 # Unit 3 Others — Issue Analysis (58 issues)
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 **Issue tab:** `Unit 3 Others` — *Copy of jana speak*
 **Data sheet:** [`1KyC8ION…`](https://docs.google.com/spreadsheets/d/1KyC8IONfHAlufQvsRKUfqDAUran0EQ3OC0MOHanRRfY/edit?gid=0)
 **Script:** [`scripts/Copy of jana speak/`](../../scripts/Copy%20of%20jana%20speak/) — `Lithursan.gs` **1288 L (no grouping)** · `cleaned.gs` **345 L**

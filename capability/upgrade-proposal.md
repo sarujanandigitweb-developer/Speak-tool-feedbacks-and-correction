@@ -1,5 +1,14 @@
 # Speak Tool — Upgrade Proposal
 
+> **📌 Dated record — status checked 2026-09-14.** The **2026-08-13 proposal**. What happened next:
+>
+> - **Done:** customer-safe grouping, pause/resume, always-on recognition, packing priority, lampshade collections, merge sequencing.
+> - **Different route:** instead of a shared Apps Script library, a single **HTML Speak Tool** was built and published on Varmen AIOS — one file, one deployment. See [packlist_extension/README.md](../packlist_extension/README.md).
+> - **Overruled:** "shade last" — the business ruled lampshade first.
+> - **Not done:** SSML / number normalisation, pre-flight checks, `Shipping Service` column, foot pedals.
+>
+> Current state: [handover note](../handover/handover-note.md).
+
 **For:** Varmen
 **From:** Lithurshan
 **Date:** 2026-08-13

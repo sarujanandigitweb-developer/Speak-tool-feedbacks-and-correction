@@ -1,5 +1,7 @@
 # Hold Feature — Phase 1 Discovery & Conflict Analysis
 
+> **📌 Dated record — status checked 2026-09-14.** This 2026-08-19 discovery targeted the Unit 3 Sheets tool and stopped (RED). **Hold was later built in the HTML Speak Tool only** — Hold, Held (N), held pass, resume at the normal-pass position — tested by `evidence/hold-feature-tests.js`. The Unit 3 Sheets tool still has no Hold. See [packlist_extension/README.md](../packlist_extension/README.md).
+
 **Target:** `scripts/Unit 3 Lampshade/Lithursan.gs` (1,948 lines)
 **Date:** 2026-08-19
 **Phase:** 1 (discovery only)

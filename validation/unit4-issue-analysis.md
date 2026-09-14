@@ -1,5 +1,7 @@
 # Unit 4 — Issue-by-Issue Root Cause Analysis
 
+> **📌 Dated record — status checked 2026-09-14.** Analysis of the **original station scripts as of 2026-08-13**; line numbers refer to those versions. Unit 3 Lampshade has changed substantially since — current status in [03-unit3-lampshade-logic.md §6](../documentation/03-unit3-lampshade-logic.md). The other stations' scripts are unchanged. Where this file proposes "shade last", note the business later ruled **lampshade first**.
+
 **Data sheet:** [`1XPvIv32…`](https://docs.google.com/spreadsheets/d/1XPvIv32Fcj6zWABZRfx1u7h2TJ8px1VrJpqqyC9QCF8/edit?gid=0) — *Unit 4 speak tool*
 **Issue sheet:** [`1uN-9zD…` gid=1959868645](https://docs.google.com/spreadsheets/d/1uN-9zDQ-JKoY9AsFGIUqt5ByRK6uuwmSgKwaEXmFtUM/edit?gid=1959868645) — *Unit 4* tab, **59 issues**
 **Code:** [`scripts/Unit 4 speak tool/`](../scripts/Unit%204%20speak%20tool/) — 6 files, 1,263 lines
