@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speak Tool (STFC) — Final Handover</title>
+<style>
+  :root{
+    --theme:#15243D;
+    --theme-ink:#ffffff;
+    --bg:#F4F6F9;
+    --surface:#ffffff;
+    --ink:#1B2430;
+    --ink-2:#4B5A6B;
+    --ink-3:#73808F;
+    --rule:#DCE3EA;
+    --accent:#1F6FEB;
+    --ok:#1B7A43; --ok-soft:#E6F4EB;
+    --warn:#8A5A00; --warn-soft:#FBF0DA;
+    --crit:#A4231E; --crit-soft:#FBE8E7;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; font-size:16px;
+  }
+  header{
+    background:var(--theme); color:var(--theme-ink);
+    padding:2.5rem clamp(1.25rem,5vw,4rem) 2rem;
+  }
+  header .meta{color:#C9D3E0; font-size:0.95rem; margin-top:0.6rem;}
+  header .meta b{color:#fff;}
+  header h1{margin:0; font-size:1.9rem; letter-spacing:-0.01em;}
+  header .banner{
+    margin-top:1.4rem; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.22);
+    border-radius:var(--radius); padding:1rem 1.2rem; font-size:0.93rem; color:#E8ECF3;
+  }
+  header .banner b{color:#fff;}
+  nav.toc{
+    background:var(--surface); border-bottom:1px solid var(--rule);
+    padding:1rem clamp(1.25rem,5vw,4rem);
+    display:flex; flex-wrap:wrap; gap:0.4rem 1rem; font-size:0.85rem;
+    position:sticky; top:0; z-index:5; box-shadow:0 1px 0 rgba(0,0,0,0.02);
+  }
+  nav.toc a{color:var(--theme); text-decoration:none; white-space:nowrap;}
+  nav.toc a:hover{text-decoration:underline;}
+  main{max-width:960px; margin:0 auto; padding:2.5rem clamp(1.25rem,5vw,4rem) 5rem;}
+  section{margin-bottom:2.6rem;}
+  h2{
+    font-size:1.3rem; color:var(--theme); border-bottom:2px solid var(--theme);
+    padding-bottom:0.45rem; margin-top:0; display:flex; align-items:center; gap:0.6rem;
+  }
+  h2 .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:1.7rem; height:1.7rem; border-radius:50%; background:var(--theme); color:#fff;
+    font-size:0.85rem; font-weight:700; flex-shrink:0;
+  }
+  h3{font-size:1.02rem; color:var(--ink); margin:1.4rem 0 0.5rem;}
+  p{margin:0.6rem 0;}
+  a{color:var(--accent);}
+  table{width:100%; border-collapse:collapse; margin:0.9rem 0 1.2rem; font-size:0.92rem;}
+  th,td{text-align:left; padding:0.55rem 0.7rem; border:1px solid var(--rule); vertical-align:top;}
+  th{background:#EEF1F6; color:var(--theme); font-weight:600;}
+  tr:nth-child(even) td{background:#FAFBFC;}
+  code, pre{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:0.86em;
+  }
+  code{background:#EDF0F5; padding:0.15em 0.4em; border-radius:4px; color:#1B2E52;}
+  pre{
+    background:#101A2B; color:#DCE6F5; padding:1rem 1.1rem; border-radius:var(--radius);
+    overflow-x:auto; line-height:1.55; margin:0.9rem 0;
+  }
+  pre code{background:none; padding:0; color:inherit;}
+  ul,ol{padding-left:1.4rem; margin:0.6rem 0;}
+  li{margin:0.3rem 0;}
+  .callout{
+    border-radius:var(--radius); padding:1rem 1.2rem; margin:1rem 0; font-size:0.93rem;
+    border-left:4px solid var(--ink-3); background:#F0F2F5;
+  }
+  .callout.warn{border-left-color:var(--warn); background:var(--warn-soft);}
+  .callout.crit{border-left-color:var(--crit); background:var(--crit-soft);}
+  .callout.ok{border-left-color:var(--ok); background:var(--ok-soft);}
+  .badge{
+    display:inline-block; font-size:0.72rem; font-weight:700; letter-spacing:0.03em;
+    text-transform:uppercase; padding:0.2em 0.6em; border-radius:999px;
+  }
+  .badge.live{background:var(--ok-soft); color:var(--ok);}
+  .badge.repo{background:var(--warn-soft); color:var(--warn);}
+  .badge.gap{background:#E6E9F5; color:var(--theme);}
+  footer{
+    background:var(--theme); color:#C9D3E0; padding:1.6rem clamp(1.25rem,5vw,4rem);
+    font-size:0.85rem; text-align:center;
+  }
+  @media(max-width:700px){
+    nav.toc{display:none;}
+    header{padding:2rem 1.1rem 1.6rem;}
+    main{padding:1.8rem 1.1rem 3.5rem;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge gap" style="background:rgba(255,255,255,0.15);color:#fff;">FINAL HANDOVER</div>
+  <h1>Speak Tool — Warehouse Voice Packing (STFC)</h1>
+  <div class="meta">
+    <b>Project code:</b> STFC &nbsp;·&nbsp; <b>Assigned by:</b> Varmen &nbsp;·&nbsp;
+    <b>Developer:</b> Sarujanan (techclawweb@gmail.com) &nbsp;·&nbsp;
+    <b>Handover date:</b> 2026-10-05
+  </div>
+  <div class="banner">
+    <b>Document status:</b> Newly created, consolidating and cross-checked against the existing
+    <code style="background:rgba(255,255,255,0.12);color:#fff;">handover-note.md</code> (first
+    written 2026-09-14) — that file was <b>verified against the latest commit and updated in
+    place</b> as part of this handover. This page is the one a new developer should read start to
+    finish; the note remains the detailed risk/decision log, linked throughout.
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1. Overview</a>
+  <a href="#s2">2. Final Status</a>
+  <a href="#s3">3. Latest Updates</a>
+  <a href="#s4">4. Structure</a>
+  <a href="#s5">5. Data Sources</a>
+  <a href="#s6">6. Architecture</a>
+  <a href="#s7">7. How to Run</a>
+  <a href="#s8">8. Deployment</a>
+  <a href="#s9">9. Validation</a>
+  <a href="#s10">10. Known Issues</a>
+  <a href="#s11">11. Owner</a>
+  <a href="#s12">12. Troubleshooting</a>
+  <a href="#s13">13. Final Notes</a>
+</nav>
+
+<main>
+
+<section id="s1">
+  <h2><span class="num">1</span>Project Overview</h2>
+  <p>The <b>Speak Tool</b> reads a warehouse packing station's day of pick-and-pack orders
+  <b>aloud</b>, so the packer's hands and eyes stay on the stock instead of the screen. For each
+  order it speaks: the product's <b>spoken name</b> (from a managed "Names Master Sheet", never the
+  raw marketplace title), its <b>quantity</b>, then the <b>postcode</b>, spelled out, last. The
+  packer says <b>"next"</b> (or presses a button, or a key) to move to the next item.</p>
+  <p>It exists in <b>two independently-delivered forms that share one set of packing rules</b>:</p>
+  <table>
+    <tr><th></th><th>HTML Speak Tool</th><th>Google Sheets Speak Tool</th></tr>
+    <tr><td>What</td><td>A self-contained web page dropped onto the day's Order Packing HTML export</td><td>Google Apps Script bound to each station's own Google Sheet</td></tr>
+    <tr><td>Where it runs</td><td>Varmen AIOS hub (<code>speak_tool</code> slug)</td><td>Six separate station sheets, <code>Extensions → Speak Tool</code></td></tr>
+    <tr><td>Shared rules</td><td>✅ current</td><td>✅ Unit 3 Lampshade station only</td></tr>
+  </table>
+  <p>The project began 2026-08-13 as a discovery/root-cause analysis of 160 live feedback items
+  against the (then undocumented) Unit 3 Lampshade Apps Script, and grew into the HTML tool plus a
+  rules upgrade ported onto the Unit 3 Sheets script.</p>
+</section>
+
+<section id="s2">
+  <h2><span class="num">2</span>Final Status</h2>
+  <table>
+    <tr><th>Component</th><th>State</th></tr>
+    <tr><td><b>HTML Speak Tool</b></td><td><span class="badge live">Live</span> on the Varmen AIOS hub. Hub last <b>confirmed</b> built from this repo 2026-09-14. A newer build (pack-size table, Instruction QR, order-type announcement — §3) is committed in-repo as of 2026-10-05, <b>but whether it has reached the hub cannot be verified from this repository.</b> Check the hub before assuming it matches the repo.</td></tr>
+    <tr><td>Unit 3 Lampshade — <code>packing-priority.gs</code> (WC rank, merge sequencing, 2026-09-14)</td><td><span class="badge repo">Repo only</span> — not yet pasted into the live Apps Script editor.</td></tr>
+    <tr><td>Unit 3 Lampshade — <code>Lithursan.gs</code> voice fixes (2026-08-24/25)</td><td><span class="badge repo">Repo only</span>, and the <b>live copy is a different version</b> (Enable-voice button, mic picker, <code>en-IN</code>) that no repo file matches. Export the live file first.</td></tr>
+    <tr><td>Unit 3 Others, Unit 3 Person 2, Unit 4, Schmutter, Kronen</td><td>Running their original scripts. None of the new rules work has been ported.</td></tr>
+  </table>
+  <div class="callout warn">
+    <b>Bottom line:</b> the HTML tool is production software with real packers using it daily; the
+    Sheets tool rollout is <b>partial</b> — one of six stations has the new rules, and even that
+    station's live code has diverged from the repo. Internalise this before changing anything.
+  </div>
+</section>
+
+<section id="s3">
+  <h2><span class="num">3</span>Latest Updates (what I changed last)</h2>
+  <p><b>2026-10-05 — commit <code>84689ba</code>, "enhance pack size handling and order
+  processing."</b> This is the most recent work and the part least likely to be in anyone's head
+  but mine.</p>
+  <ol>
+    <li><b>Pack-size table extended.</b> The <code>PACK</code> suffix table in
+      <code>speak_tool_html_sheet_UI/engine.js</code> grew from 12 codes to 29. A new
+      <code>Engine.baseSku()</code> replaced a blanket regex for name lookup — it only strips a
+      suffix it recognises, instead of silently truncating any SKU ending in digits.</li>
+    <li><b>Order type / merge status is now announced</b> before the first component (e.g.
+      <i>"Amazon Shipping Prime. Merge Order. …"</i>) and shown on the control bar.</li>
+    <li><b>Instruction QR is now spoken</b> — previously parsed but silent everywhere in the docs.
+      It rides after the postcode, on the last component. This closes a known gap (§9).</li>
+    <li><b>Control bar redesign</b>: a QTY/postcode details panel next to the spoken text; the
+      text row wraps instead of truncating; the bar's own height is measured and reserved so the
+      last order scrolls fully into view; Postcode now scrolls to the postcode line.</li>
+    <li><b>New regression test</b> — <code>evidence/html-order-details-tests.js</code> — checks
+      all 29 pack codes and re-parses the 13 real pack lists (155 orders) to confirm order count
+      and packing sequence are unchanged. <b>Requires <code>jsdom</code></b>, not in
+      <code>package.json</code> (§9).</li>
+    <li><code>evidence/live-names-tests.js</code> updated to match the engine's internal
+      refactor.</li>
+  </ol>
+  <p>I ran all three Node test suites myself while preparing this handover (after installing
+  <code>jsdom</code> locally, not committed): <b>28/28, 38/38, and the new suite's assertions all
+  passed</b> — see §9 for the one caveat worth checking before this reaches the hub.</p>
+  <p>Full dated history before this: <a href="../workflows/packing-workflow.md">workflows/packing-workflow.md §7</a>.</p>
+</section>
+
+<section id="s4">
+  <h2><span class="num">4</span>Project Structure / Important Files</h2>
+<pre><code>packlist_extension/        HTML Speak Tool source — EDIT HERE
+  src/speak-extension.js       UI, speech, voice commands, hold, collections view
+  src/names-live.js             live Names Master Sheet fetch/cache layer
+  src/speak-loader.template.html  the loader page template
+  build.js                     bundles the above into the generated files below
+  packlist-speak.js / speak-loader.html   GENERATED — do not edit
+  add-speak.js / serve.js       CLI helpers
+
+speak_tool_html_sheet_UI/
+  engine.js                  packing rules, pack sizes, collections, HTML parsing — EDIT HERE
+  reference-data.js          built-in names + Lampshade SOT, bundled into the build
+
+packlist_upload/Speak-Tool.html   GENERATED — the exact file uploaded to the Varmen hub
+
+scripts/&lt;station name&gt;/      Apps Script exported per station (6 stations)
+order_details/1.html … 13.html   Real pack-list test data (155 orders)
+evidence/                    Test scripts + the 160-item feedback register
+validation/ · capability/    Dated rule decisions, issue analyses, implementation reports
+workflows/packing-workflow.md    The packing-order rules, with full rule history
+documentation/ · data-maps/  System concept, logic reference, station/sheet links
+handover/                    This document, handover-note.md, Apps Script export instructions</code></pre>
+  <p>Full annotated table: top-level <a href="../README.md">README.md</a>.</p>
+</section>
+
+<section id="s5">
+  <h2><span class="num">5</span>Data Sources / Database Tables</h2>
+  <p>The tool itself <b>has no database</b> — at runtime it reads only the day's Order Packing
+  HTML page, the bundled <code>reference-data.js</code>, and the live Names Master Sheet (CSV,
+  cached 6 hours in <code>localStorage</code>; a failed/truncated fetch never overrides built-in
+  names).</p>
+  <table>
+    <tr><th>Sheet</th><th>Purpose</th></tr>
+    <tr><td>Feedback workbook</td><td>One tab per station; source of the 160-item feedback register</td></tr>
+    <tr><td>Unit 3 Lampshade station sheet</td><td><code>Sheet1</code> → <code>Cleaned Data</code>; read/written by the Sheets tool</td></tr>
+    <tr><td>Names Master Sheet</td><td>Spoken names, used live by both tools</td></tr>
+    <tr><td>Lampshade SOT</td><td>Sizes, colours, images for collection cards</td></tr>
+  </table>
+  <p>Database objects used by the <b>deployment tooling</b> (not the tool itself):</p>
+  <table>
+    <tr><th>Object</th><th>Used for</th><th>Notes</th></tr>
+    <tr><td><code>varman_aios.hub_pages</code></td><td>Stores the HTML tool's page on the hub</td><td>Written only by the external <code>push_to_hub.js</code>. Shared connection — do not repurpose</td></tr>
+    <tr><td><code>daily_task.tbl_stfc_sarujanan</code></td><td>Daily work reporting, not the tool</td><td>See <code>sql/daily_task_insert_2026-08-17.sql</code></td></tr>
+  </table>
+  <div class="callout ok">No credentials, connection strings, or API keys are stored in this repository. <code>HUB_DB_URL</code> is supplied out-of-band and must never be committed.</div>
+</section>
+
+<section id="s6">
+  <h2><span class="num">6</span>Current Workflow / Architecture</h2>
+  <ul>
+    <li><b>Inside one order</b>, products are re-sequenced by a fixed rank (Rectangle Ceiling Rose
+      → Lampshade → WC cage → Bulb → Ceiling Rose/Other, or a different order without a rectangle
+      rose) — a stable sort. An order with neither a lampshade nor a ceiling rose is untouched.</li>
+    <li><b>Merge orders</b> are sorted twice: each sub-order internally, then the sub-orders
+      themselves sequenced against each other by ranked contents.</li>
+    <li><b>Lampshade collections</b>: before an order short on a shade family, the packer collects
+      that family in bulk, up to <code>Engine.MAX_COLLECTION</code> — <b>10</b> in the HTML tool,
+      <b>15</b> in the Sheets tool (undecided discrepancy, §10).</li>
+    <li><b>Hold</b>: set an order aside, come back later — HTML tool only.</li>
+  </ul>
+  <p><code>speak_tool_html_sheet_UI/engine.js</code> is the single source of truth for the rules
+  and is compiled into the HTML tool by <code>build.js</code>. The Sheets tool is <b>not</b> built
+  from this file — <code>packing-priority.gs</code> is a hand-ported, independent re-implementation,
+  and the other five stations have none of it. There is no shared runtime between the two forms;
+  keeping their rules in sync is a manual, human responsibility.</p>
+</section>
+
+<section id="s7">
+  <h2><span class="num">7</span>How to Run</h2>
+  <h3>HTML Speak Tool</h3>
+<pre><code>node packlist_extension/build.js   # rebuilds the bundle + Speak-Tool.html
+                                     # ALWAYS run before uploading</code></pre>
+  <ul>
+    <li>Drop the day's Order Packing HTML onto <code>packlist_upload/Speak-Tool.html</code> (what the hub serves).</li>
+    <li>Or add <code>&lt;script src="packlist-speak.js"&gt;&lt;/script&gt;</code> before <code>&lt;/body&gt;</code> of the live page, same origin.</li>
+    <li>Or <code>node packlist_extension/add-speak.js &lt;file&gt;.html</code> to inject the tool into a saved pack list.</li>
+  </ul>
+  <p>Voice <b>commands</b> need <code>http(s)</code> — Chrome denies microphone access to
+  <code>file://</code>. <code>node packlist_extension/serve.js &lt;file&gt;</code> serves a file
+  locally for manual testing.</p>
+  <h3>Google Sheets tool</h3>
+  <p>Open the station sheet → <code>Extensions → Apps Script</code> to edit, or use the sheet's own
+  menu: <b>Speak Tool → Run Clean and Merge</b>, then <b>Speak Tool → Speak All Rows</b>.</p>
+</section>
+
+<section id="s8">
+  <h2><span class="num">8</span>Refresh / Deployment Process</h2>
+  <h3>HTML Speak Tool → Varmen AIOS hub</h3>
+<pre><code>node packlist_extension/build.js
+cd /home/led-247/SOT-Data-Gap-Analysis-Dashboard/hub     # separate repo, not this one
+export HUB_DB_URL="…ask Varmen — never write it into a file or chat…"
+node push_to_hub.js sarujanan speak_tool "Speak Tool — Order Pack List" \
+     /home/led-247/Speak-tool-feedbacks-and-correction/packlist_upload/Speak-Tool.html</code></pre>
+  <p>Same member + slug overwrites in place. <b>File size proves nothing</b> — verify a change
+  landed by decoding the <code>stx-bundle</code> base64 out of the stored HTML. This push step was
+  <b>not re-run</b> as part of this handover — only the in-repo build was verified.</p>
+  <h3>Google Sheets tool</h3>
+  <ol>
+    <li><b>Export the live copy first</b> and commit it — a live station may already differ from
+      the repo (confirmed true for Unit 3's <code>Lithursan.gs</code>). See
+      <code>handover/script-export-instructions.md</code>.</li>
+    <li>Merge your change into the exported files, paste into the editor (or <code>clasp push</code>), save.</li>
+    <li>In the sheet: <b>Run Clean and Merge</b> (required — the sort happens here) then
+      <b>Speak All Rows</b>, and listen to at least one merge order and one collection.</li>
+  </ol>
+</section>
+
+<section id="s9">
+  <h2><span class="num">9</span>Validation Completed</h2>
+  <p>No automated browser test suite exists — voice needs a real Chrome instance and microphone, so
+  voice itself is verified manually on a real station over <code>http(s)</code>.</p>
+  <table>
+    <tr><th>Suite</th><th>Command</th><th>Result</th></tr>
+    <tr><td>Live-name lookup against the built bundle</td><td><code>node evidence/live-names-tests.js</code></td><td>28/28 passing, 2026-10-05</td></tr>
+    <tr><td>Hold / held-pass logic</td><td><code>node evidence/hold-feature-tests.js</code></td><td>38/38 passing, 2026-10-05</td></tr>
+    <tr><td>Pack sizes, order type, merge flag, Instruction QR</td><td><code>node evidence/html-order-details-tests.js</code></td><td>Passing 2026-10-05, after <code>npm install jsdom</code> (not in <code>package.json</code>)</td></tr>
+  </table>
+  <div class="callout warn">
+    <b>Worth re-checking before this build reaches the hub:</b> the new test reports <b>73 orders</b>
+    flagged <code>isMerge: true</code> out of 155 test orders, while every existing dated document
+    (written/verified 2026-09-14) states <b>27 merges</b> for the same set. <code>isMerge</code> is
+    new in this commit and is <code>true</code> if either an explicit "Merge Order" badge is found
+    <i>or</i> an order simply has more than one product block — that <code>or</code> may classify
+    more orders as "merge" than the historical figure counted, and it now also controls whether the
+    tool <b>says "Merge Order" out loud</b>. Not confirmed with Varmen whether the wider trigger is
+    intended — recommend checking before/soon after the next hub push.
+  </div>
+  <p>Packing-rule correctness (sequencing, collections) is unchanged by this commit — the new test
+  itself asserts order count and sequence are identical to the prior committed <code>engine.js</code>.</p>
+</section>
+
+<section id="s10">
+  <h2><span class="num">10</span>Known Issues / Dependencies</h2>
+  <h3>HTML Speak Tool</h3>
+  <ul>
+    <li>"Save a copy" silently fails on the hub (iframe sandbox lacks <code>allow-downloads</code>). Works when the loader is opened directly.</li>
+    <li>Send Order Instruction is not spoken (no field for it on the page). The Sheets tool speaks it.</li>
+    <li><code>html-order-details-tests.js</code> needs <code>jsdom</code>, absent from <code>package.json</code>.</li>
+    <li>The <code>isMerge</code> trigger-rate discrepancy above (§9) — needs a decision, not yet a confirmed bug.</li>
+  </ul>
+  <h3>Unit 3 Sheets tool</h3>
+  <ul>
+    <li><code>onOpen</code> defined in both <code>action.gs</code> and <code>cleaned.gs</code> — last loaded wins.</li>
+    <li>Pack-suffix lookup in <code>cleaned.gs</code> strips exactly 3 characters, wrong for a 2-character <code>PK</code> suffix.</li>
+    <li>Merge label still reads "merge order total: N : merge order: 1".</li>
+    <li>Duplicate-postcode blanking also blanks the QR flag as a side-effect.</li>
+    <li><code>RPR44WH</code> hardcoded in shared cleaning logic.</li>
+    <li>No Hold feature. Collection limit is <b>15</b> vs the HTML tool's <b>10</b> — undecided.</li>
+  </ul>
+  <p>Other five stations have none of the packing-priority, collection, merge-sequencing or Hold work; rolling it out (or retiring their sheets) is an open decision, not started.</p>
+  <h3>External dependencies</h3>
+  <ul>
+    <li><b>Chrome only</b> — <code>SpeechRecognition</code> is Chrome-specific and cloud-backed.</li>
+    <li>Network access to <code>docs.google.com</code> for live names; falls back to built-in names offline.</li>
+    <li>Varmen AIOS hub + Postgres <code>hub_pages</code> table, reached only via a <b>separate repository</b>'s <code>push_to_hub.js</code>. <code>HUB_DB_URL</code> is out-of-band, never committed.</li>
+    <li>Google Apps Script platform; <code>clasp</code> CLI optional but recommended.</li>
+  </ul>
+</section>
+
+<section id="s11">
+  <h2><span class="num">11</span>Backup Person / Owner</h2>
+  <p><b>Varmen</b> assigned the project and is the contact for deployment decisions and the
+  <code>HUB_DB_URL</code> credential. <b>No backup developer is named in any document in this
+  repository.</b></p>
+  <div class="callout crit">
+    This is a gap. Before the outgoing developer's access is removed, confirm with Varmen who will
+    hold the hub deploy access going forward, own the five open decisions in §13, and be the point
+    of contact for station teams reporting new issues.
+  </div>
+</section>
+
+<section id="s12">
+  <h2><span class="num">12</span>Troubleshooting</h2>
+  <table>
+    <tr><th>Symptom</th><th>Likely cause / fix</th></tr>
+    <tr><td>Edited source, hub page unchanged</td><td>Run <code>node packlist_extension/build.js</code> first — source edits are not live until the bundle is rebuilt, then re-push to the hub.</td></tr>
+    <tr><td>Pushed to hub, page still looks old</td><td>File size proves nothing. Decode the <code>stx-bundle</code> base64 and confirm your change is in it.</td></tr>
+    <tr><td>Voice commands fail, speech output works</td><td>Page opened over <code>file://</code>. Serve it (<code>serve.js</code>) or test on the hub, which is https.</td></tr>
+    <tr><td>"Saved" shown, no download on the hub</td><td>Known iframe sandbox issue (§10). Open the loader directly, outside the hub iframe.</td></tr>
+    <tr><td>Edited a station's <code>.gs</code>, sheet unchanged</td><td>Run <b>Run Clean and Merge</b> in the sheet — the pipeline runs there, not on save.</td></tr>
+    <tr><td>Two <code>.gs</code> files define the same function</td><td>Apps Script shares one global scope; last file loaded wins. Check which actually runs.</td></tr>
+    <tr><td>About to change a station's script</td><td><b>Export the live copy first</b> — it may already differ from the repo (confirmed true for Unit 3).</td></tr>
+    <tr><td>New test won't run</td><td><code>Cannot find module 'jsdom'</code> → <code>npm install jsdom</code> first.</td></tr>
+    <tr><td>Unsure if a rule change affects real orders</td><td>Re-run against <code>order_details/*.html</code> (155 real orders) and report how many orders move.</td></tr>
+  </table>
+</section>
+
+<section id="s13">
+  <h2><span class="num">13</span>Final Handover Notes</h2>
+  <ul>
+    <li>Start at the top-level <a href="../README.md">README.md</a> — it routes to everything else by role.</li>
+    <li><a href="handover-note.md">handover-note.md</a> in this folder is the detailed risk and
+      open-decision log; verified and updated as part of this handover — read it in full before
+      touching the Unit 3 Sheets tool.</li>
+    <li>The single highest-risk action available to a new developer is <b>pasting a repo
+      <code>.gs</code> file over a live station's Apps Script without exporting the live version
+      first</b> — this has already silently happened once (Unit 3's <code>Lithursan.gs</code>) and
+      would delete real, undocumented live changes again if repeated.</li>
+    <li>Five decisions remain open (Sheets-tool collection limit, stale hub pages, whether to roll
+      Unit 3's rules out to the other five stations, whether to speak the customer note, a possible
+      <code>Shipping Service</code> column) — full list in §9 of <code>handover-note.md</code>. None
+      block current operation; all need a decision from Varmen or the business, not more code.</li>
+    <li>This document and <code>handover-note.md</code> describe only what exists in this Git
+      repository. The hub push step, the external <code>push_to_hub.js</code> tooling, and the
+      Google Sheets stations' live state all live outside it and were not independently re-verified
+      beyond what is noted above.</li>
+  </ul>
+  <div class="callout ok">No passwords, API keys, tokens, or credentials are recorded in this document or anywhere in this repository.</div>
+</section>
+
+</main>
+
+<footer>Speak Tool (STFC) — Final Handover · Generated 2026-10-05 · LEDSone Speak Tool project</footer>
+
+</body>
+</html>

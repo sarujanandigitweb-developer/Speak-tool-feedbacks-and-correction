@@ -5,7 +5,7 @@ changed, restyled or rebuilt — the tool reads the page and adds a control bar.
 
 **Live:** Varmen AIOS hub, slug `speak_tool` —
 <https://varman-aios-hub-varmens.vercel.app/view/hub_pages/speak_tool>
-**Last updated:** 2026-09-14
+**Last updated:** 2026-10-05
 
 ---
 
@@ -84,6 +84,12 @@ voice works there.
 
 Status chip: `Remaining N of M`, `Held pass · x of y left`, or `✓ All orders completed`.
 
+Since 2026-10-05 the bar also shows the **order type / merge label** next to the position chip, and
+a **details panel** (QTY, postcode) beside the spoken text, read from the same line that is about to
+be spoken so the screen and the voice never disagree. The spoken-text row now wraps instead of
+truncating long names. **Postcode** (button or auto-reached in the queue) scrolls the page to the
+postcode line as it is read, not just the product image.
+
 **Keyboard:** `→` Next · `←` Back · `↑` Repeat · `↓` Pause · `Enter` Restart (or **Yes** while a
 question is open) · `Esc` closes zoom (or **No** while a question is open). Ignored while typing in
 one of the page's own fields.
@@ -149,9 +155,13 @@ fetch (< 500 rows) never lowers the built-in names. No name → **"This one"** p
 
 **The postcode is always last**, spelled character by character, riding on the last component.
 
-**Counts:** the component's own count where the page gives one, otherwise quantity × pack code
-(`2PK`–`9PK`, `APK`=10, `CPK`=20, `DPK`=30, `EPK`=50, `FPK`=100, `NPK`=200, `PPK`=300, `QPK`=500,
-`RPK`=1000).
+**Counts:** the component's own count where the page gives one, otherwise quantity × pack code —
+`1PK`–`9PK`=1–9, `APK`=10, `BPK`=15, `CPK`=20, `DPK`=30, `EPK`=50, `FPK`=100, `GPK`=12, `HPK`=16,
+`IPK`=24, `JPK`=75, `KPK`=150, `LPK`=11, `MPK`=80, `NPK`=200, `OPK`=250, `PPK`=300, `QPK`=500,
+`RPK`=1000, `SPK`=25 (full table and the matching `Engine.baseSku()` helper in `engine.js`, extended
+2026-10-05 from the Flask-prototype table to cover codes seen in later pack lists). An unrecognised
+suffix is treated as pack size 1, not stripped — `Engine.baseSku()` only strips a suffix it
+recognises, which is what name lookup now uses instead of the old blanket `/\d*A?PK$/` regex.
 
 **Colours:** Lampshade SOT first, then the SKU suffix table.
 
@@ -196,8 +206,16 @@ A collection is its own step, spoken **before** the order that triggered it.
 
 ### Not spoken
 
-**Instruction QR** and **Send Order Instruction** — the pack list page has no field for them. The
-Google Sheets tool does speak them.
+**Send Order Instruction** — the pack list page has no field for it. The Google Sheets tool does
+speak it.
+
+**Instruction QR** changed 2026-10-05: it **is now spoken** when the pack list page shows an
+`Instruction QR` badge on the order. It rides with the postcode, after it, on the last component.
+Before 2026-10-05 it was parsed but never spoken — this handover closes that gap.
+
+Also added 2026-10-05: each order's **type and merge status** (e.g. "Amazon Shipping Prime. Merge
+Order.") is now announced before the first component, read from the pack list's own order-type
+label (falling back to the source file name). This also shows as a label on the control bar.
 
 ---
 
@@ -252,9 +270,18 @@ A saved `.speak.html` keeps the version it was built with.
 ### Tests
 
 ```bash
-node evidence/live-names-tests.js     # runs against the BUILT bundle
+node evidence/live-names-tests.js          # runs against the BUILT bundle
 node evidence/hold-feature-tests.js
+node evidence/html-order-details-tests.js  # pack-size table, order type, merge tag,
+                                            # Instruction QR — needs jsdom (see below)
 ```
+
+`html-order-details-tests.js` (added 2026-10-05) requires **jsdom**, which is not in
+`package.json` — install it first (`npm install jsdom`, or point `NODE_PATH` at an existing
+install) or the run fails with `Cannot find module 'jsdom'`. It compares the working tree's
+`engine.js` against `git show HEAD:speak_tool_html_sheet_UI/engine.js` (or
+`STX_BASELINE_ENGINE` if set), so it is most useful run **before committing** a change to
+confirm order count and sequence are unaffected.
 
 ---
 

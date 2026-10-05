@@ -143,6 +143,7 @@ the code that implements them.
 | 2026-08-24 | HTML tool: held pass resumes at the normal-pass position | code comments in `speak-extension.js` |
 | 2026-09-11 | **WC cages rank immediately after Lampshade**; priority applied **per merge sub-order** | this page; code comments |
 | 2026-09-14 | **Merge sub-orders sequenced by priority**; Type 3 applies at merge level; ported to the Unit 3 Sheets tool | this page; code comments |
+| 2026-10-05 | HTML tool: pack-size table extended (1PK, B/G/H/I/J/K/L/M/O/S-PK) with a dedicated `baseSku()` for name lookup; order type + merge status announced before the first component; **Instruction QR now spoken** (was parsed but silent); control bar shows order type and a QTY/postcode details panel; postcode auto-continues and scrolls | [evidence/html-order-details-tests.js](../evidence/html-order-details-tests.js); code comments in `engine.js`, `speak-extension.js` |
 
 ---
 

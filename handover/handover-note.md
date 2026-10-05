@@ -1,8 +1,19 @@
 # Handover Note — Speak Tool (STFC)
 
-**Handed over:** 2026-09-14 · **Project:** STFC — Speak Tool, Warehouse Voice Packing · **Assigned by:** Varmen
+**Handed over:** 2026-10-05 (final handover — Sarujanan leaving the project; verified and updated
+from the 2026-09-14 version below) · **Project:** STFC — Speak Tool, Warehouse Voice Packing ·
+**Assigned by:** Varmen
 
 Read this first. It says what is live, what is only in the repository, and what will bite you.
+
+> **2026-10-05 update:** the HTML tool's pack-size table, Instruction QR speech, order-type/merge
+> announcement and control-bar layout changed on this date (commit `84689ba`, "enhance pack size
+> handling and order processing"). Source, the generated bundle (`packlist-speak.js`) and the
+> upload file (`packlist_upload/Speak-Tool.html`) were all rebuilt and committed together —
+> verified by decoding the `stx-bundle` base64 inside `Speak-Tool.html` and confirming it contains
+> the new code. **Whether this has been pushed to the live Varmen AIOS hub page cannot be verified
+> from this repository** — that is a separate step (§5.1) run against a database this repo has no
+> access to. Confirm on the hub before assuming the live page matches.
 
 ---
 
@@ -21,7 +32,7 @@ collect lampshades in bulk, and — for merge orders — which customer order is
 
 | Component | State | Where |
 |---|---|---|
-| **HTML Speak Tool** | ✅ **Live** — built from this repo on 2026-09-14 | Varmen AIOS, slug `speak_tool` |
+| **HTML Speak Tool** | ✅ **Live** — hub last confirmed built from this repo 2026-09-14. A newer build exists in-repo as of 2026-10-05 (pack-size/QR/order-type changes); **push to the hub not verified from this repo** — see the banner at the top | Varmen AIOS, slug `speak_tool` |
 | Unit 3 Lampshade — `packing-priority.gs` (WC rank, merge sequencing, 2026-09-14) | ⚠️ **In repo only.** Not yet pasted into the Apps Script editor | `scripts/Unit 3 Lampshade/` |
 | Unit 3 Lampshade — `Lithursan.gs` voice fixes (2026-08-24/25) | ⚠️ **In repo only**, and the live copy is a *different* version — see §3.1 | `scripts/Unit 3 Lampshade/` |
 | Unit 3 Others, Unit 3 Person 2, Unit 4, Schmutter, Kronen | Original scripts. **None of the packing-priority or collection work.** | `scripts/<station>/` |
@@ -153,8 +164,9 @@ There is no browser test suite — voice needs Chrome and a real microphone.
 
 | What | How |
 |---|---|
-| Live-name lookup against the **built** bundle | `node evidence/live-names-tests.js` — 28 checks, all passing 2026-09-14 |
-| Hold / held-pass logic | `node evidence/hold-feature-tests.js` — 38 checks, all passing 2026-09-14 |
+| Live-name lookup against the **built** bundle | `node evidence/live-names-tests.js` — 28 checks, all passing 2026-10-05 |
+| Hold / held-pass logic | `node evidence/hold-feature-tests.js` — 38 checks, all passing 2026-10-05 |
+| Pack-size table, order type, merge tag, Instruction QR | `node evidence/html-order-details-tests.js` (added 2026-10-05) — passing 2026-10-05. **Needs `jsdom`**, not in `package.json`; `npm install jsdom` first or it fails with `Cannot find module 'jsdom'`. Diffs the working tree's `engine.js` against `git show HEAD:…`, so run it *before* committing a change |
 | Packing rules | Load `reference-data.js` + `engine.js` in Node and run `Engine.applyPriority` / `Engine.buildCollections` against orders extracted from `order_details/*.html` (155 orders, 27 merges) |
 | Voice | Real station, Chrome, over `http(s)` — `file://` blocks the microphone (`node packlist_extension/serve.js <file>`) |
 
@@ -167,8 +179,12 @@ unaffected when only merges should change.
 
 **HTML Speak Tool**
 - "Save a copy" on the hub (§3.4).
-- Instruction QR and Send Order Instruction are **not spoken** — the pack list page has no field for
-  them. The Sheets tool does speak them.
+- Send Order Instruction is **not spoken** — the pack list page has no field for it. The Sheets
+  tool does speak it. (Instruction QR **was** in this category but is spoken as of 2026-10-05 —
+  closed, see the update banner at the top of this note.)
+- `evidence/html-order-details-tests.js` (2026-10-05) needs `jsdom`, which is **not** listed in
+  `package.json`. `npm install jsdom` before running it; do not commit `node_modules`
+  (already `.gitignore`d).
 
 **Unit 3 Sheets tool** (from the 13 Aug review, re-checked against current code 2026-09-14)
 - `onOpen` is defined in both `action.gs` and `cleaned.gs`; the last loaded wins.
@@ -212,3 +228,11 @@ items. That analysis is kept as a record in
 confirmation, Finished card, held-pass resume, live names, WC rank, merge sequencing) is recorded in
 [workflows/packing-workflow.md §7](../workflows/packing-workflow.md#7-rule-history) and in comments
 beside the code — there are no daily logs for it.
+
+**2026-10-05 — final handover.** Sarujanan is leaving the project. This note was re-verified
+against the latest commit (`84689ba`, pack-size table extension, order-type/merge announcement,
+Instruction QR now spoken, control-bar layout) and updated in place — see the banner at the top
+and §§2, 7, 8. A consolidated handover document covering both tool forms end-to-end is at
+[`speak-tool-stfc_handover.md`](speak-tool-stfc_handover.md) /
+[`speak-tool-stfc_handover.html`](speak-tool-stfc_handover.html) in this same folder; this note
+remains the detailed risk/decision reference it always was.
