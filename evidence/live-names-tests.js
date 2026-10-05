@@ -56,7 +56,9 @@ function sandbox(opts) {
     src + '\n')(w, Date, Promise, setTimeout, clearTimeout, console,
                 typeof AbortController !== 'undefined' ? AbortController : undefined);
 
-  const pn = new Function('w', grabFn(BUNDLE, 'productName') + '\nreturn productName;')(w);
+  new Function('window', slice('/* ===== speak_tool_html_sheet_UI/engine.js',
+    '/* ===== packlist_extension/src/names-live.js'))(w);
+  const pn = w.Engine.productName;
   return { w, productName: pn, store };
 }
 

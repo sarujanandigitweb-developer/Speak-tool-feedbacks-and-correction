@@ -317,6 +317,7 @@
 
     first.querySelectorAll('li.bg-white').forEach(function (li) {
       li.setAttribute('data-stx-file', '1');
+      li.setAttribute('data-stx-source', files[0].name || '');
     });
 
     if (list) {
@@ -324,6 +325,7 @@
         var doc = new DOMParser().parseFromString(files[i].html, 'text/html');
         doc.querySelectorAll('li.bg-white').forEach(function (li) {
           li.setAttribute('data-stx-file', String(i + 1));
+          li.setAttribute('data-stx-source', files[i].name || '');
           list.appendChild(first.importNode(li, true));
         });
       }

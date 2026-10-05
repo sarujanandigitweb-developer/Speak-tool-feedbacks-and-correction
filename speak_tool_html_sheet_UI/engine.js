@@ -15,11 +15,16 @@
      Taken from the existing Flask prototype (speak_tool/app.py). The Apps
      Script build never had this, which is why ppProductSize() refuses to strip
      numeric pack suffixes: LSFT2205PK is ambiguous without this table. */
-  var PACK = {'2PK':2,'3PK':3,'4PK':4,'5PK':5,'6PK':6,'7PK':7,'8PK':8,'9PK':9,
-              'APK':10,'CPK':20,'DPK':30,'EPK':50,'FPK':100,'NPK':200,
-              'PPK':300,'QPK':500,'RPK':1000};
-  function packSize(sku){ var s=String(sku||'').toUpperCase();
-    return s.length>=3 ? (PACK[s.slice(-3)]||1) : 1; }
+  var PACK = {'1PK':1,'2PK':2,'3PK':3,'4PK':4,'5PK':5,'6PK':6,'7PK':7,'8PK':8,'9PK':9,
+              'APK':10,'BPK':15,'CPK':20,'DPK':30,'EPK':50,'FPK':100,
+              'GPK':12,'HPK':16,'IPK':24,'JPK':75,'KPK':150,'LPK':11,
+              'MPK':80,'NPK':200,'OPK':250,'PPK':300,'QPK':500,'RPK':1000,'SPK':25};
+  function packSize(sku){ var s=String(sku||'').trim().toUpperCase();
+    return PACK[s.slice(-3)]||1; }
+  function baseSku(sku){
+    var s=String(sku||'').trim().toUpperCase();
+    return PACK[s.slice(-3)] ? s.slice(0,-3) : s;
+  }
 
   /* ---- classification -----------------------------------------------------
      Ceiling rose is tested FIRST: LSWD360BG is "360 Black gold inner celing
@@ -103,7 +108,7 @@
     var live=(w.STX_NAMES&&w.STX_NAMES.map)||null;
     var n=(live&&live[k])||((w.REF&&w.REF.names)?w.REF.names[k]:'');
     if (n) return n;
-    var base=k.replace(/\d*A?PK$/,'');                 // LSFT220BG5PK -> LSFT220BG
+    var base=baseSku(k);                 // LSFT220BG5PK -> LSFT220BG
     return (live&&live[base])||(w.REF&&w.REF.names&&w.REF.names[base])||'';
   }
 
@@ -217,6 +222,19 @@
   /* ---- parse one pack list document --------------------------------------
      Selectors are the dashboard's own classes, as used by speak_tool/app.py and
      re-verified against 17 saved pack lists. */
+  function orderTypeName(value){
+    var name=String(value||'').replace(/\s+/g,' ').trim();
+    var match=name.match(/^(.*?\bPacklist)\b/i);
+    if (match) return match[1];
+    if (/^[{[]/.test(name) || /^(?:pack list|\d+(?:\.html?)?)$/i.test(name)) return '';
+    return name.replace(/\.html?$/i,'').replace(/\s+(?:L\s+)?u\d+$/i,'').trim();
+  }
+
+  function packlistSpeech(order){
+    if (order.startsPacklist === false) return '';
+    return String(order.orderType || '').replace(/^Amazon Shipping Prime Packlist$/i, 'Amazon Shipping Prime');
+  }
+
   function parseDoc(doc, sourceName){
     var orders=[];
     var nodes=doc.querySelectorAll('li.bg-white');
@@ -225,7 +243,16 @@
       var node=nodes[oi];
       var custBlocks=node.querySelectorAll('div.col-2.small');
       var customer = custBlocks.length>1 ? txt(custBlocks[1]) : '';
-      var address  = txt(node.querySelector('div.fs-6'));
+      var postcodeNode = node.querySelector('div.fs-6');
+      var address  = txt(postcodeNode);
+      var orderType = orderTypeName(txt(node.querySelector('div.text-secondary.fw-bold'))) ||
+        orderTypeName(attr(node,'data-stx-source')) || orderTypeName(sourceName);
+      var instructionQr = Array.prototype.some.call(node.querySelectorAll('.badge.bg-success'), function(b){
+        return /^Instruction\s+QR$/i.test(txt(b));
+      }) ? 'Instruction QR' : '';
+      var isMerge = Array.prototype.some.call(node.querySelectorAll('div.text-primary'), function(b){
+        return /^(?:zzz)?merge[ _]order$/i.test(txt(b));
+      });
       var platform = txt(node.querySelector('div.bg-light.border'));
       var price    = txt(node.querySelector('div.text-end span span:nth-child(2)'));
 
@@ -293,16 +320,20 @@
       lines = sequenceSubOrders(blocks);
       if (!lines.length) continue;
 
+      var previous = orders.length ? orders[orders.length - 1] : null;
+      var packlistKey = attr(node,'data-stx-file') || attr(node,'data-stx-source') || sourceName || '';
       orders.push({
+        packlistKey:packlistKey,
+        startsPacklist:!previous || previous.packlistKey !== packlistKey || previous.orderType !== orderType,
         customer:customer, address:address, platform:platform, price:price,
         // The <li> this order was read from. The pack-list extension scrolls to
         // it, so the page moves with the speech. Never serialised - persist()
         // copies named fields only, so this cannot reach JSON.stringify.
-        node:node,
+        node:node, postcodeNode:postcodeNode, orderType:orderType,
+        isMerge:isMerge || blocks.length > 1,
         source:sourceName||'', lines:lines,
-        // Fields the pack list does NOT carry. They exist only because the team
-        // types them in, so the tool owns them now instead of a spreadsheet.
-        note:'', status:'', instructionQr:''
+        // Notes/status remain editable; Instruction QR comes from the badge.
+        note:'', status:'', instructionQr:instructionQr
       });
     }
     return orders;
@@ -572,10 +603,12 @@
     });
     if (!segs.length) return segs;
 
+    var intro=[packlistSpeech(order), order.isMerge ? 'Merge Order' : ''].filter(Boolean).join('. ');
+    if (intro) segs[0].say = intro + '. ' + segs[0].say;
     var tail=[];
+    if (order.instructionQr) tail.push(order.instructionQr + '.');
     if (order.address) tail.push(':Post Code: ' + String(order.address).split('').filter(function(c){return c.trim();}).join(' '));
     var note=[];
-    if (order.instructionQr) note.push(order.instructionQr);
     if (order.note) note.push(order.note);
     if (note.length) tail.push(': Note : ' + note.join(' . '));
     if (tail.length) segs[segs.length-1].say += ' ' + tail.join(' ');
@@ -583,9 +616,9 @@
   }
 
   w.Engine = {
-    parseDoc: parseDoc, buildCollections: buildCollections, speechFor: speechFor,
+    parseDoc: parseDoc, packlistSpeech: packlistSpeech, buildCollections: buildCollections, speechFor: speechFor,
     productType: productType, productColour: productColour, productName: productName,
-    packSize: packSize, applyPriority: applyPriority, sizeOf: sizeOf,
+    packSize: packSize, baseSku: baseSku, orderTypeName: orderTypeName, applyPriority: applyPriority, sizeOf: sizeOf,
     collectionFamily: collectionFamily, collectionScopeLabel: collectionScopeLabel,
     MAX_COLLECTION: MAX_COLLECTION
   };

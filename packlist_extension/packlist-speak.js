@@ -43,11 +43,16 @@ window.REF = {
      Taken from the existing Flask prototype (speak_tool/app.py). The Apps
      Script build never had this, which is why ppProductSize() refuses to strip
      numeric pack suffixes: LSFT2205PK is ambiguous without this table. */
-  var PACK = {'2PK':2,'3PK':3,'4PK':4,'5PK':5,'6PK':6,'7PK':7,'8PK':8,'9PK':9,
-              'APK':10,'CPK':20,'DPK':30,'EPK':50,'FPK':100,'NPK':200,
-              'PPK':300,'QPK':500,'RPK':1000};
-  function packSize(sku){ var s=String(sku||'').toUpperCase();
-    return s.length>=3 ? (PACK[s.slice(-3)]||1) : 1; }
+  var PACK = {'1PK':1,'2PK':2,'3PK':3,'4PK':4,'5PK':5,'6PK':6,'7PK':7,'8PK':8,'9PK':9,
+              'APK':10,'BPK':15,'CPK':20,'DPK':30,'EPK':50,'FPK':100,
+              'GPK':12,'HPK':16,'IPK':24,'JPK':75,'KPK':150,'LPK':11,
+              'MPK':80,'NPK':200,'OPK':250,'PPK':300,'QPK':500,'RPK':1000,'SPK':25};
+  function packSize(sku){ var s=String(sku||'').trim().toUpperCase();
+    return PACK[s.slice(-3)]||1; }
+  function baseSku(sku){
+    var s=String(sku||'').trim().toUpperCase();
+    return PACK[s.slice(-3)] ? s.slice(0,-3) : s;
+  }
 
   /* ---- classification -----------------------------------------------------
      Ceiling rose is tested FIRST: LSWD360BG is "360 Black gold inner celing
@@ -131,7 +136,7 @@ window.REF = {
     var live=(w.STX_NAMES&&w.STX_NAMES.map)||null;
     var n=(live&&live[k])||((w.REF&&w.REF.names)?w.REF.names[k]:'');
     if (n) return n;
-    var base=k.replace(/\d*A?PK$/,'');                 // LSFT220BG5PK -> LSFT220BG
+    var base=baseSku(k);                 // LSFT220BG5PK -> LSFT220BG
     return (live&&live[base])||(w.REF&&w.REF.names&&w.REF.names[base])||'';
   }
 
@@ -245,6 +250,19 @@ window.REF = {
   /* ---- parse one pack list document --------------------------------------
      Selectors are the dashboard's own classes, as used by speak_tool/app.py and
      re-verified against 17 saved pack lists. */
+  function orderTypeName(value){
+    var name=String(value||'').replace(/\s+/g,' ').trim();
+    var match=name.match(/^(.*?\bPacklist)\b/i);
+    if (match) return match[1];
+    if (/^[{[]/.test(name) || /^(?:pack list|\d+(?:\.html?)?)$/i.test(name)) return '';
+    return name.replace(/\.html?$/i,'').replace(/\s+(?:L\s+)?u\d+$/i,'').trim();
+  }
+
+  function packlistSpeech(order){
+    if (order.startsPacklist === false) return '';
+    return String(order.orderType || '').replace(/^Amazon Shipping Prime Packlist$/i, 'Amazon Shipping Prime');
+  }
+
   function parseDoc(doc, sourceName){
     var orders=[];
     var nodes=doc.querySelectorAll('li.bg-white');
@@ -253,7 +271,16 @@ window.REF = {
       var node=nodes[oi];
       var custBlocks=node.querySelectorAll('div.col-2.small');
       var customer = custBlocks.length>1 ? txt(custBlocks[1]) : '';
-      var address  = txt(node.querySelector('div.fs-6'));
+      var postcodeNode = node.querySelector('div.fs-6');
+      var address  = txt(postcodeNode);
+      var orderType = orderTypeName(txt(node.querySelector('div.text-secondary.fw-bold'))) ||
+        orderTypeName(attr(node,'data-stx-source')) || orderTypeName(sourceName);
+      var instructionQr = Array.prototype.some.call(node.querySelectorAll('.badge.bg-success'), function(b){
+        return /^Instruction\s+QR$/i.test(txt(b));
+      }) ? 'Instruction QR' : '';
+      var isMerge = Array.prototype.some.call(node.querySelectorAll('div.text-primary'), function(b){
+        return /^(?:zzz)?merge[ _]order$/i.test(txt(b));
+      });
       var platform = txt(node.querySelector('div.bg-light.border'));
       var price    = txt(node.querySelector('div.text-end span span:nth-child(2)'));
 
@@ -321,16 +348,20 @@ window.REF = {
       lines = sequenceSubOrders(blocks);
       if (!lines.length) continue;
 
+      var previous = orders.length ? orders[orders.length - 1] : null;
+      var packlistKey = attr(node,'data-stx-file') || attr(node,'data-stx-source') || sourceName || '';
       orders.push({
+        packlistKey:packlistKey,
+        startsPacklist:!previous || previous.packlistKey !== packlistKey || previous.orderType !== orderType,
         customer:customer, address:address, platform:platform, price:price,
         // The <li> this order was read from. The pack-list extension scrolls to
         // it, so the page moves with the speech. Never serialised - persist()
         // copies named fields only, so this cannot reach JSON.stringify.
-        node:node,
+        node:node, postcodeNode:postcodeNode, orderType:orderType,
+        isMerge:isMerge || blocks.length > 1,
         source:sourceName||'', lines:lines,
-        // Fields the pack list does NOT carry. They exist only because the team
-        // types them in, so the tool owns them now instead of a spreadsheet.
-        note:'', status:'', instructionQr:''
+        // Notes/status remain editable; Instruction QR comes from the badge.
+        note:'', status:'', instructionQr:instructionQr
       });
     }
     return orders;
@@ -600,10 +631,12 @@ window.REF = {
     });
     if (!segs.length) return segs;
 
+    var intro=[packlistSpeech(order), order.isMerge ? 'Merge Order' : ''].filter(Boolean).join('. ');
+    if (intro) segs[0].say = intro + '. ' + segs[0].say;
     var tail=[];
+    if (order.instructionQr) tail.push(order.instructionQr + '.');
     if (order.address) tail.push(':Post Code: ' + String(order.address).split('').filter(function(c){return c.trim();}).join(' '));
     var note=[];
-    if (order.instructionQr) note.push(order.instructionQr);
     if (order.note) note.push(order.note);
     if (note.length) tail.push(': Note : ' + note.join(' . '));
     if (tail.length) segs[segs.length-1].say += ' ' + tail.join(' ');
@@ -611,9 +644,9 @@ window.REF = {
   }
 
   w.Engine = {
-    parseDoc: parseDoc, buildCollections: buildCollections, speechFor: speechFor,
+    parseDoc: parseDoc, packlistSpeech: packlistSpeech, buildCollections: buildCollections, speechFor: speechFor,
     productType: productType, productColour: productColour, productName: productName,
-    packSize: packSize, applyPriority: applyPriority, sizeOf: sizeOf,
+    packSize: packSize, baseSku: baseSku, orderTypeName: orderTypeName, applyPriority: applyPriority, sizeOf: sizeOf,
     collectionFamily: collectionFamily, collectionScopeLabel: collectionScopeLabel,
     MAX_COLLECTION: MAX_COLLECTION
   };
@@ -941,9 +974,8 @@ window.REF = {
      Per component:   [name or "This one" + colour]  ::  [count]  ::
      Last component:  … then the postcode, spelled out.
 
-     The postcode is ALWAYS last. On the sheet a typed note could follow it, but
-     the pack list carries no Instruction QR and no Send Order Instruction
-     field, so there is nothing that could come after. */
+     Order type and merge identification precede the first component.
+     Instruction QR, when present, precedes the postcode. */
 
   // ONE name path, shared with the engine: the master sheet, and a second look
   // with the pack suffix removed (LSFT220BG5PK -> LSFT220BG). Nothing else is
@@ -975,7 +1007,7 @@ window.REF = {
     var sot = (w.REF && w.REF.sot) || null;
     if (!sot) return false;
     var k = String(sku || '').trim().toUpperCase();
-    return !!(sot[k] || sot[k.replace(/\d*A?PK$/, '')]);
+    return !!(sot[k] || sot[w.Engine.baseSku(k)]);
   }
 
   function collectionName(g) {
@@ -1014,6 +1046,9 @@ window.REF = {
     });
     if (!segs.length) return segs;
 
+    var intro = [w.Engine.packlistSpeech(o), o.isMerge ? 'Merge Order' : ''].filter(Boolean).join('. ');
+    if (intro) segs[0].say = intro + '. ' + segs[0].say;
+    if (o.instructionQr) segs[segs.length - 1].say += ' ' + o.instructionQr + '.';
     var pc = postcodeSpeech(o.address);
     if (pc) segs[segs.length - 1].say += ' ' + pc;  // rides on the last component
     return segs;
@@ -1070,37 +1105,39 @@ window.REF = {
        reserves room at the bottom with its own padding, so the bar sits in
        clear space rather than over the cards. */
     '#stx-bar{position:fixed;left:0;right:0;bottom:0;z-index:2147483003;background:#12181F;color:#EAF0F5;',
-      'box-shadow:0 -2px 14px rgba(0,0,0,.34);padding:9px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}',
+      'box-shadow:0 -2px 14px rgba(0,0,0,.34);padding:7px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}',
+    '#stx-summary{flex:1 0 100%;display:flex;align-items:center;gap:16px;min-width:0}',
+    '#stx-context{flex:0 1 360px;display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px;font-size:12px}',
+    '#stx-context #stx-pos{flex-basis:100%;font-size:11px}',
+    '#stx-context #stx-status{font-size:11px;padding:2px 7px}',
+    '#stx-reading{display:flex;flex:1;align-items:center;gap:14px;min-width:0}',
+    '#stx-details{display:flex;gap:12px;align-items:center;flex-shrink:0;font-size:17px;font-weight:700}',
+    '#stx-details small{display:block;font-size:10px;font-weight:500;color:#9FB0BE;letter-spacing:.06em}',
+    '#stx-nav{flex-wrap:wrap}',
+    '#stx-bar>#stx-back{order:1}',
+    '#stx-bar>#stx-tools{order:2;margin-left:auto}',
+    '#stx-tools .stx-hideable{flex-wrap:wrap;justify-content:flex-end}',
+    '#stx-mic{max-width:300px;white-space:normal !important}',
+    '#stx-set{bottom:calc(var(--stx-bar-height,96px) + 8px) !important}',
+    '#stx-zoom{bottom:var(--stx-bar-height,96px) !important}',
+    '@media(max-width:850px){#stx-summary{align-items:flex-start;flex-direction:column;gap:5px}',
+      '#stx-context{flex:auto}#stx-context #stx-pos{flex-basis:auto}#stx-reading{width:100%}',
+      '#stx-tools{max-width:100%}#stx-tools>.stx-grp{min-width:0}}',
     '#stx-bar.stx-min{padding:5px 14px}',
     '#stx-bar.stx-min .stx-hideable{display:none}',
-    /* WHY THE BUTTONS USED TO MOVE.
-     *
-     * The bar is flex-wrap:wrap and every control was a DIRECT flex item, so
-     * they wrapped one at a time wherever the line happened to run out. The two
-     * elements to their left change width on every order:
-     *
-     *   #stx-pos  "Order 14 of 155 · Item 1 of 2 · file 2"   38 chars
-     *             "Collection · Item 1 of 1"                 24 chars
-     *   #stx-say  flex-basis 260px - refused to shrink below that
-     *
-     * That ~100px swing moved the wrap point, and whichever buttons sat near it
-     * hopped between rows. Zoom and Voice changed rows purely because the text
-     * to their left got shorter - captured in two screenshots of the same bar.
-     *
-     * min-width:0 lets #stx-pos shrink rather than push, and basis 0 lets
-     * #stx-say take only what is left over. The text now absorbs every bit of
-     * variation, so nothing downstream of it moves. */
+    /* Give the spoken product its own wrapping row so long names remain
+       visible without squeezing the navigation controls. */
     '#stx-pos{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#8FA3B5;',
       'font-variant-numeric:tabular-nums;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}',
-    '#stx-say{flex:1 1 0;min-width:0;font-size:16px;font-weight:600;line-height:1.35;',
-      'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '#stx-say{flex:1;min-width:0;font-size:18px;font-weight:600;line-height:1.3;',
+      'white-space:normal;overflow-wrap:anywhere}',
     /* A control group is ONE flex item, and never wraps inside itself. The bar
        can still drop a whole group to a second row on a narrow window, but the
        buttons keep their positions relative to each other either way - a packer
        reaching for Next always finds it in the same place. */
-    '.stx-grp{display:flex;align-items:center;gap:12px;flex:0 0 auto;flex-wrap:nowrap}',
+    '.stx-grp{display:flex;align-items:center;gap:6px;flex:0 0 auto;flex-wrap:nowrap}',
     '#stx-bar button{font-size:14px;font-weight:500;color:#EAF0F5;background:#243040;border:1px solid #3A4A5E;',
-      'border-radius:5px;padding:8px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin:0}',
+      'border-radius:5px;padding:7px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin:0}',
     '#stx-bar button:hover{background:#2E3D50;border-color:#54677E}',
     '#stx-bar button:focus-visible{outline:2px solid #4FB0C6;outline-offset:1px}',
     '#stx-bar button.stx-primary{background:#0F6E76;border-color:#0F6E76;font-weight:600}',
@@ -1288,12 +1325,14 @@ window.REF = {
     root.id = 'stx-root';
     root.innerHTML =
       '<div id="stx-bar">' +
+        '<div id="stx-summary"><div id="stx-context">' +
         '<span id="stx-pos">—</span>' +
+        '<span id="stx-order-type" style="font-weight:600"></span>' +
       // Standing answer to "how much is left?" - visible on every order, not
       // only in the message that scrolls past when the pass ends.
       '<span id="stx-status">—</span>' +
-        '<span id="stx-say"></span>' +
-        '<span class="stx-grp">' +
+        '</div><div id="stx-reading"><span id="stx-say"></span><span id="stx-details"></span></div></div>' +
+        '<span class="stx-grp" id="stx-nav">' +
           '<button type="button" data-act="restart">\u{1F501} Restart</button>' +
           '<button type="button" data-act="back">⏮ Back</button>' +
           '<button type="button" data-act="postcode">\u{1F4CD} Postcode</button>' +
@@ -1303,7 +1342,7 @@ window.REF = {
           '<button type="button" id="stx-hold" data-act="hold" title="Set this order aside and come back to it">\u270B Hold</button>' +
           '<button type="button" id="stx-heldbtn" class="stx-empty" data-act="showhold" title="Show the held orders">\u{1F4CB} Held (0)</button>' +
         '</span>' +
-        '<span class="stx-spacer"></span>' +
+
         /* Grouped with a CLASS, not an inline style, on purpose: the fold rule
            "#stx-bar.stx-min .stx-hideable{display:none}" is id+class+class and
            still outranks .stx-grp, so collapsing the bar hides these four exactly
@@ -1325,7 +1364,7 @@ window.REF = {
            The inner span keeps .stx-hideable so collapsing still hides the four
            controls, and the arrow stays outside it so it is always reachable -
            exactly as before. */
-        '<span class="stx-grp">' +
+        '<span class="stx-grp" id="stx-tools">' +
           '<span class="stx-hideable stx-grp">' +
             '<button type="button" class="stx-hideable" data-act="zoom" id="stx-zoombtn">\u{1F50D} Zoom on</button>' +
             '<button type="button" class="stx-hideable" data-act="settings" id="stx-setbtn" title="Language, voice and speed">\u2699 Voice</button>' +
@@ -1427,6 +1466,19 @@ window.REF = {
     });
 
     d.body.appendChild(root);
+    // Reserve the measured panel height so the final order can scroll clear.
+    var space = d.createElement('div');
+    space.id = 'stx-panel-space';
+    space.setAttribute('aria-hidden', 'true');
+    d.body.appendChild(space);
+    function sizePanel() {
+      var height = $('stx-bar').getBoundingClientRect().height;
+      space.style.height = height + 'px';
+      root.style.setProperty('--stx-bar-height', height + 'px');
+    }
+    if (w.ResizeObserver) new w.ResizeObserver(sizePanel).observe($('stx-bar'));
+    w.addEventListener('resize', sizePanel);
+    sizePanel();
 
     root.addEventListener('click', function (ev) {
       var b = ev.target.closest('button[data-act]');
@@ -1756,6 +1808,11 @@ window.REF = {
     }
   }
 
+  function scrollToPostcode(order) {
+    hideZoom();
+    scrollToLine(order.postcodeNode || (order.node && order.node.querySelector('div.fs-6')));
+  }
+
   /* Brings the component being spoken into view.
    *
    * Every parsed line already carries imgEl - the real <img> for that component
@@ -1772,6 +1829,16 @@ window.REF = {
     catch (e) {
       try { el.scrollIntoView(); } catch (e2) { /* not scrollable - carry on */ }
     }
+  }
+
+  function paintReading(seg, entry) {
+    var line = entry && entry.kind === 'order' && seg && seg.line;
+    $('stx-say').textContent = line ? (nameFor(line.sku) ||
+      ('This one' + (line.colour ? ' ' + line.colour : ''))) : (seg ? seg.say : '');
+    var details = $('stx-details');
+    if (details) details.innerHTML = line ?
+      '<span><small>QTY</small>' + esc(line.qty) + '</span>' +
+      (entry.order.address ? '<span><small>POSTCODE</small>' + esc(entry.order.address) + '</span>' : '') : '';
   }
 
   function render() {
@@ -1809,10 +1876,14 @@ window.REF = {
       if (f) fileTag = '  ·  file ' + f;
     }
 
+    var typeLabel = $('stx-order-type');
+    if (typeLabel) typeLabel.textContent = e.kind === 'order' ?
+      [e.order.orderType, e.order.isMerge ? 'Merge Order' : ''].filter(Boolean).join(' · ') : '';
+
     $('stx-pos').textContent =
       (e.kind === 'collection' ? 'Collection' : 'Order ' + (e.orderIndex + 1) + ' of ' + ORDERS.length) +
       '  ·  Item ' + (segIndex + 1) + ' of ' + Math.max(1, segs.length) + fileTag;
-    $('stx-say').textContent = segs[segIndex] ? segs[segIndex].say : '';
+    paintReading(segs[segIndex], e);
 
     // The picture of the component being spoken, opened by itself. A collection
     // step has its own dialog with all the pictures on it, so no zoom there.
@@ -2125,7 +2196,7 @@ window.REF = {
         // stays on whatever component they were on.
         var e = QUEUE[index];
         var pc = (e && e.kind === 'order') ? postcodeSpeech(e.order.address) : '';
-        if (pc) speak(pc);
+        if (pc) speak(pc, null, null, function () { scrollToPostcode(e.order); });
         else $('stx-say').textContent = 'No postcode on this order.';
         break;
       }
@@ -2268,7 +2339,7 @@ window.REF = {
 
   // rate is OPTIONAL. Every existing caller passes nothing and gets speechRate,
   // exactly as before - only speakCurrent() on a collection entry overrides it.
-  function speak(text, done, rate) {
+  function speak(text, done, rate, onStart) {
     if (!text) { if (done) done(); return; }
     synth.cancel();
     paused = false;
@@ -2285,7 +2356,10 @@ window.REF = {
     // onstart is the only honest signal that audio really began. Chrome accepts
     // speak() and silently drops it when the page has had no user gesture yet,
     // reporting no error at all.
-    u.onstart = function () { spoken = true; hideStart(); };
+    u.onstart = function () {
+      if (mine !== speechToken) return;
+      spoken = true; hideStart(); if (onStart) onStart();
+    };
     u.onend = function () { if (mine !== speechToken) return; micRelease(); if (done) done(); };
     u.onerror = function () { if (mine !== speechToken) return; micRelease(); if (done) done(); };
     synth.speak(u);
@@ -2302,9 +2376,19 @@ window.REF = {
     if (!seg) { speak(''); return; }
     // The panel is re-stamped from the same segment that is about to be spoken,
     // so the SKU on screen and the SKU in the ear cannot disagree.
-    $('stx-say').textContent = seg.say;
     var e = QUEUE[index];
-    speak(seg.say, null, (e && e.kind === 'collection') ? collectionRate() : speechRate);
+    paintReading(seg, e);
+    var pcAt = e && e.kind === 'order' ? seg.say.indexOf(':Post Code:') : -1;
+    if (pcAt >= 0) {
+      // Automatic continuation within the same item: no additional Next step.
+      var readPostcode = function () {
+        speak(seg.say.slice(pcAt), null, speechRate, function () { scrollToPostcode(e.order); });
+      };
+      if (pcAt > 0) speak(seg.say.slice(0, pcAt), readPostcode, speechRate);
+      else readPostcode();
+    } else {
+      speak(seg.say, null, (e && e.kind === 'collection') ? collectionRate() : speechRate);
+    }
   }
 
   function setPauseBtn(on) {
